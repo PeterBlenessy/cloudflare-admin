@@ -8,12 +8,12 @@
   "permissions": [
     "core:app:default",
     "core:webview:allow-internal-toggle-devtools",
-    "shell:allow-open",
     "http:default",
     {
         "identifier": "http:default",
         "allow": [{ "url": "https://api.cloudflare.com/*" }]
     },
+    "shell:allow-open",
     "window-state:allow-restore-state",
     "window-state:allow-save-window-state"
   ]

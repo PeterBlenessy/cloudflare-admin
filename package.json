@@ -1,11 +1,14 @@
 {
     "name": "cloudflare-admin",
+    "license": "MIT",
     "private": false,
-    "version": "0.1.0",
+    "version": "0.2.0",
     "type": "module",
     "scripts": {
-        "dev": "tauri dev",
-        "build": "tauri build"
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "tauri": "tauri"
     },
     "dependencies": {
         "@tauri-apps/api": ">=2.0.0-rc.0",

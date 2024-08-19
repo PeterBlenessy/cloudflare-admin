@@ -9,8 +9,6 @@ const { cfAccountId, cfApiKey, cfNamespaceId, cfKeyValuePairs, cfNamespaceKeys, 
 
 const baseUrl = 'https://api.cloudflare.com/client/v4';
 
-const urlVerifyApiKey = baseUrl + "/user/tokens/verify";
-const urlListNamespaces = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces`;
 const urlListNamespaceKeys = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/keys`;
 const urlReadKeyValuePair = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/values/`;
 
@@ -99,7 +97,7 @@ const refreshKeyValuePairs = async () => {
 
             kvPairs.push({ key: key.name, ...data });
         });
-        
+
         // Wait for all of the above promises to resolve, and then store the new key-value pairs.
         // We do not want to include it in the loop above for performance reasons.
         await Promise.all(promises);
@@ -121,14 +119,17 @@ const kvHeaders = ref([
     { title: 'Actions', key: 'actions', sortable: false }
 ]);
 
+const search = ref('')
 
 </script>
 
 <template>
-    <v-data-table :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading">
+    <v-data-table :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading" density="compact"
+        fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
         <template v-slot:top>
             <v-toolbar flat>
-                <v-toolbar-title>Key-Value pairs</v-toolbar-title>
+                <v-text-field v-model="search" label="Search" prepend-inner-icon="mdi-magnify" variant="outlined"
+                    hide-details single-line></v-text-field>
                 <v-btn class="ma-2" color="blue-darken-2" icon="mdi-refresh" @click="refreshKeyValuePairs()"
                     :disabled="loading" />
             </v-toolbar>
