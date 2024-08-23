@@ -1,20 +1,24 @@
 {
-  "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "default",
-  "description": "Capability for the main window",
-  "windows": [
-    "main"
-  ],
-  "permissions": [
-    "core:app:default",
-    "core:webview:allow-internal-toggle-devtools",
-    "http:default",
-    {
-        "identifier": "http:default",
-        "allow": [{ "url": "https://api.cloudflare.com/*" }]
-    },
-    "shell:allow-open",
-    "window-state:allow-restore-state",
-    "window-state:allow-save-window-state"
-  ]
+    "$schema": "../gen/schemas/desktop-schema.json",
+    "identifier": "default",
+    "description": "Capability for the main window",
+    "windows": [
+        "main"
+    ],
+    "permissions": [
+        "core:app:default",
+        "core:webview:allow-internal-toggle-devtools",
+        "http:default",
+        {
+            "identifier": "http:default",
+            "allow": [
+                {
+                    "url": "https://api.cloudflare.com/*"
+                }
+            ]
+        },
+        "shell:allow-open",
+        "window-state:allow-restore-state",
+        "window-state:allow-save-window-state"
+    ]
 }

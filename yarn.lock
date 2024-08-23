@@ -318,6 +318,13 @@
   dependencies:
     "@tauri-apps/api" "^2.0.0-rc.0"
 
+"@tauri-apps/plugin-updater@^2.0.0-rc.0":
+  version "2.0.0-rc.0"
+  resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-updater/-/plugin-updater-2.0.0-rc.0.tgz#6d6610ff7ce749423884798a73118e54e7330672"
+  integrity sha512-EKajf/sBpFif0cwXhTo3BmNvTZ2t2DDLRyhA8FFKugZNoOeqU97bHhPT5DIqMUPRE1tyDk9o7sXm8dKf7oz+EA==
+  dependencies:
+    "@tauri-apps/api" "^2.0.0-rc.0"
+
 "@tauri-apps/plugin-window-state@^2.0.0-rc.0":
   version "2.0.0-rc.0"
   resolved "https://registry.yarnpkg.com/@tauri-apps/plugin-window-state/-/plugin-window-state-2.0.0-rc.0.tgz#3852f2b313b5f7616dd863319d07ca8964e81e77"
