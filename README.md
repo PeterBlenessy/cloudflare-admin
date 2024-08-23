@@ -1,7 +1,27 @@
-# Tauri + Vue 3
+# Cloudflare admin
 
-This template should help get you started developing with Tauri + Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+ Cloudflare admin is a simple app that allows you to manage your Cloudflare worker's KV. It is built using [Tauri v2](https://v2.tauri.app), [Vue 3](https://vuejs.org), [Vuetify](https://vuetifyjs.com), and [Vite](https://vitejs.dev).
 
-## Recommended IDE Setup
+## Features
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- [x] Cloudflare API settings
+- [ ] List available namespaces
+- [x] List all key-value pairs in selected namespace
+- [ ] Delete a key
+- [ ] Delete selected keys
+
+## Installation
+
+```bash
+# Clone the repository
+git clone
+
+# Install dependencies
+yarn install
+
+# Start the app in development mode
+yarn tauri dev
+
+# Build the app
+yarn tauri build
+```
