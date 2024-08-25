@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.4 - 2024-08-25
+- Added cancel button to the settings dialog.
+- Added button to toggle dark/light mode.
+- Changed settings dialog to be modal.
+- Added two-way binding for showing settings component.
+
 ## v0.1.3 - 2024-08-23
 - Fixed updater related configuration
 

@@ -31,6 +31,9 @@ const vuetify = createVuetify({
         defaultSet: 'mdi',
 
     },
+    theme: {
+        defaultTheme: 'dark'
+    },
 });
 app.use(vuetify);
 
