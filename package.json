@@ -1,8 +1,8 @@
 {
     "name": "cloudflare-admin",
     "license": "MIT",
-    "private": false,
-    "version": "0.1.4",
+    "private": true,
+    "version": "0.1.5",
     "type": "module",
     "scripts": {
         "dev": "vite",

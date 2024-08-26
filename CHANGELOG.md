@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.5 - 2024-08-26
+- Updated updater permissions.
+
 ## v0.1.4 - 2024-08-25
 - Added cancel button to the settings dialog.
 - Added button to toggle dark/light mode.
