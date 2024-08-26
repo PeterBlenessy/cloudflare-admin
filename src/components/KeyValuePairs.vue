@@ -130,8 +130,7 @@ const search = ref('')
             <v-toolbar flat>
                 <v-text-field v-model="search" label="Search" prepend-inner-icon="mdi-magnify" variant="outlined"
                     hide-details single-line></v-text-field>
-                <v-btn class="ma-2" color="blue-darken-2" icon="mdi-refresh" @click="refreshKeyValuePairs()"
-                    :disabled="loading" />
+                <v-btn variant="plain" icon="mdi-sync" @click="refreshKeyValuePairs()" :disabled="loading" />
             </v-toolbar>
         </template>
 

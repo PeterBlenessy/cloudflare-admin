@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.6 - 2024-08-27
+- Added option to manually check for app updates.
+- Updated Tauri dependencies.
+- Updated button icons.
+
 ## v0.1.5 - 2024-08-26
 - Updated updater permissions.
 

@@ -4,6 +4,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import KeyValuePairs from "./components/KeyValuePairs.vue";
 import Settings from "./components/Settings.vue";
+import Updater from './components/Updater.vue';
 import { cfVerifyApiKey } from "./api/cloudflare.js";
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from './stores/settings-store.js';
@@ -16,6 +17,7 @@ const theme = useTheme();
 
 const isValidApiKey = ref(false);
 const showSettingsDialog = ref(false);
+const isUpdating = ref(false);
 
 const cfLogo = computed(() => new URL(`./assets/CF_logomark${isValidApiKey.value ? '' : (theme.global.current.value.dark ? '_white' : '_black')}.svg`, import.meta.url).href);
 const toggleTheme = () => { theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark'; }
@@ -34,7 +36,8 @@ watch(cfApiKey, async () => { isValidApiKey.value = await cfVerifyApiKey(cfApiKe
                     <v-img :src="cfLogo" width="30" />
                 </v-btn>
 
-                <v-btn icon="mdi-theme-light-dark" @click="toggleTheme" variant="plain" />
+                <v-btn variant="plain" icon="mdi-theme-light-dark" @click="toggleTheme" />
+                <v-btn variant="plain" icon="mdi-download" @click="isUpdating = true" :loading="isUpdating" />
 
             </template>
         </v-app-bar>
@@ -47,6 +50,8 @@ watch(cfApiKey, async () => { isValidApiKey.value = await cfVerifyApiKey(cfApiKe
         <!-- showSettingsDialog is shared between parent and child component -->
         <!-- Reference: https://blog.bitsrc.io/vue-js-3-3s-definemodel-enhancing-parent-child-component-communication-d43eca5cb089 -->
         <Settings v-model="showSettingsDialog" />
+
+        <Updater v-model="isUpdating" />
 
     </v-layout>
 </template>
