@@ -2,7 +2,6 @@ import { fetch } from "@tauri-apps/plugin-http";
 
 const baseUrl = 'https://api.cloudflare.com/client/v4';
 
-//const urlListNamespaces = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces`;
 //const url = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${NAMESPACE_ID}/values/${key_name}`;
 
 const getOptions = (apiKey) => {
@@ -28,6 +27,18 @@ const cfVerifyApiKey = async (apiKey) => {
     }
 }
 
+// List namespaces
+const cfListNamespaces = async (apiKey, accountId) => {
+    const urlListNamespaces = baseUrl + `/accounts/${accountId}/storage/kv/namespaces`;
+
+    const response = await fetch(urlListNamespaces, getOptions(apiKey));
+    if (!response.ok) {
+        throw new Error(`Fetch namespaces error! status: ${response.status}`);
+    }
+    const data = await response.json();
+    return data.result;
+}
+
 // Lists namespace keys
 const cfListKeys = async (accountId, namespaceId, limit = 1000, cursor) => {
     const urlListNamespaceKeys = baseUrl + `/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/keys`;
@@ -35,7 +46,7 @@ const cfListKeys = async (accountId, namespaceId, limit = 1000, cursor) => {
     let url = urlListNamespaceKeys + `?limit=${limit}`;
     if (cursor) url += `&cursor=${cursor}`;
 
-    const response = await fetch(url, options);
+    const response = await fetch(url, getOptions(apiKey));
     if (!response.ok) {
         throw new Error(`Fetch keys error! status: ${response.status}`);
     }
@@ -47,7 +58,7 @@ const cfListKeys = async (accountId, namespaceId, limit = 1000, cursor) => {
 const cfReadKeyValuePair = async (accountId, namespaceId, key) => {
     const urlReadKeyValuePair = baseUrl + `/accounts/${accountId}/storage/kv/namespaces/${namespaceId}/values/`;
 
-    const response = await fetch(urlReadKeyValuePair + key, options);
+    const response = await fetch(urlReadKeyValuePair + key, getOptions(apiKey));
     if (!response.ok) {
         throw new Error(`Fetch key-value pair error! status: ${response.status}`);
     }
@@ -56,6 +67,7 @@ const cfReadKeyValuePair = async (accountId, namespaceId, key) => {
 
 export {
     cfVerifyApiKey,
+    cfListNamespaces,
     cfListKeys,
     cfReadKeyValuePair
 };

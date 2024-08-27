@@ -1,8 +1,9 @@
 <script setup>
-import { ref } from "vue";
+import { onMounted, ref, watch } from "vue";
 import { fetch } from "@tauri-apps/plugin-http";
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '../stores/settings-store.js';
+import { cfListNamespaces } from "../api/cloudflare.js";
 
 const settingsStore = useSettingsStore();
 const { cfAccountId, cfApiKey, cfNamespaceId, cfKeyValuePairs, cfNamespaceKeys, cfKeysCursor } = storeToRefs(settingsStore);
@@ -20,6 +21,15 @@ const options = {
         'Content-Type': 'application/json'
     }
 };
+
+const listNamespaces = async () => {
+    const result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
+
+    return result.map(item => ({
+        title: item.title,
+        value: item.id
+    }));
+}
 
 // Lists namespace keys
 const listKeys = async (limit = 1000, cursor) => {
@@ -120,27 +130,40 @@ const kvHeaders = ref([
 ]);
 
 const search = ref('')
+const namespaceOptions = ref([]);
+
+onMounted(async () => { namespaceOptions.value = await listNamespaces(); });
+
+watch(cfNamespaceId, async () => { await refreshKeyValuePairs(); });
 
 </script>
 
 <template>
-    <v-data-table :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading" density="compact"
-        fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
-        <template v-slot:top>
-            <v-toolbar flat>
-                <v-text-field v-model="search" label="Search" prepend-inner-icon="mdi-magnify" variant="outlined"
-                    hide-details single-line></v-text-field>
-                <v-btn variant="plain" icon="mdi-sync" @click="refreshKeyValuePairs()" :disabled="loading" />
-            </v-toolbar>
-        </template>
+    <v-card flat width="100%">
+        <v-card-title class="d-flex flex-wrap">
+            <v-select class="flex-1-0 ma-2" v-model="cfNamespaceId" :items="namespaceOptions" label="Select namespace"
+                prepend-inner-icon="mdi-database" append-icon="mdi-refresh" variant="outlined" density="compact"
+                @click:append="refreshKeyValuePairs()">
+            </v-select>
 
-        <template v-slot:no-data>
-            <v-btn color="primary" @click="refreshKeyValuePairs()" text="List KV pairs" />
-        </template>
+            <v-text-field class="ma-2" v-model="search" label="Search" prepend-inner-icon="mdi-magnify" variant="outlined"
+                single-line density="compact">
+            </v-text-field>
+        </v-card-title>
 
-        <template v-slot:item.actions="{ item }">
-            <v-icon size="small" @click="deleteItem(item)" icon="mdi-delete" />
-        </template>
+        <v-divider></v-divider>
 
-    </v-data-table>
+        <v-data-table width="100%" :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading"
+            density="compact" fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
+
+            <template v-slot:no-data>
+                <v-btn color="primary" @click="refreshKeyValuePairs()" text="List KV pairs" />
+            </template>
+
+            <template v-slot:item.actions="{ item }">
+                <v-icon size="small" @click="deleteItem(item)" icon="mdi-delete" />
+            </template>
+
+        </v-data-table>
+    </v-card>
 </template>

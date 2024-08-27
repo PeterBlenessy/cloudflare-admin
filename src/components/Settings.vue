@@ -1,15 +1,13 @@
 <template>
     <v-dialog v-model="isDialogActive" max-width="500px" persistent>
         <div>
-            <v-card title="Settings" prepend-icon="mdi-cog-outline" class="mx-auto pa-12 pb-8" max-width="450">
+            <v-card title="Cloudflare API settings" prepend-icon="mdi-cog-outline" class="mx-auto pa-12 pb-8" max-width="450">
                 <v-text-field v-model="accountId" single-line density="compact" variant="outlined"
                     placeholder="CF account Id" required prepend-inner-icon="mdi-account" />
                 <v-text-field v-model="apiKey" single-line density="compact" variant="outlined" placeholder="CF API Key"
                     required prepend-inner-icon="mdi-key" :type="apiKeyVisible ? 'text' : 'password'"
                     :append-inner-icon="apiKeyVisible ? 'mdi-eye-off' : 'mdi-eye'"
                     @click:append-inner="apiKeyVisible = !apiKeyVisible" />
-                <v-text-field v-model="namespaceId" single-line density="compact" variant="outlined"
-                    placeholder="CF namespace Id" required prepend-inner-icon="mdi-database" />
 
                 <v-card-actions>
                     <v-spacer />
@@ -27,10 +25,9 @@ import { storeToRefs } from 'pinia';
 import { useSettingsStore } from '../stores/settings-store.js';
 
 const settingsStore = useSettingsStore();
-const { cfAccountId, cfApiKey, cfNamespaceId } = storeToRefs(settingsStore);
+const { cfAccountId, cfApiKey } = storeToRefs(settingsStore);
 
 const accountId = ref('');
-const namespaceId = ref('');
 const apiKey = ref('');
 const apiKeyVisible = ref(false);
 
@@ -43,7 +40,6 @@ const closeDialog = () => { isDialogActive.value = false; }
 const saveSettings = async () => {
     cfAccountId.value = accountId.value;
     cfApiKey.value = apiKey.value;
-    cfNamespaceId.value = namespaceId.value;
 
     console.log('Successfully saved settings');
 
@@ -55,7 +51,6 @@ const saveSettings = async () => {
 onMounted(() => {
     accountId.value = cfAccountId.value;
     apiKey.value = cfApiKey.value;
-    namespaceId.value = cfNamespaceId.value;
 });
 
 </script>

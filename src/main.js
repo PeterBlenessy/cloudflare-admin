@@ -5,13 +5,13 @@ import App from "./App.vue";
 import { createPinia } from 'pinia';
 
 // Vuetify
+import '@mdi/font/css/materialdesignicons.css';
 import 'vuetify/styles';
 import { createVuetify } from 'vuetify';
 import * as components from 'vuetify/components';
 import * as directives from 'vuetify/directives';
-
-// import { aliases, mdi } from 'vuetify/iconsets/mdi'
-import '@mdi/font/css/materialdesignicons.css'; // Ensure you are using css-loader
+import { md2 } from 'vuetify/blueprints';
+import { aliases, mdi } from 'vuetify/iconsets/mdi';
 
 // ---------------------------------------------------------------------------------------------
 // Create the app
@@ -25,11 +25,15 @@ app.use(pinia);
 // ---------------------------------------------------------------------------------------------
 // Make Vuetify available in the app
 const vuetify = createVuetify({
+    blueprint: md2,
     components,
     directives,
     icons: {
         defaultSet: 'mdi',
-
+        aliases,
+        sets: {
+            mdi,
+        },
     },
     theme: {
         defaultTheme: 'dark'
