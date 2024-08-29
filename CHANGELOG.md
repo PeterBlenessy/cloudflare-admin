@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+- Added release info to updater dialog: version, date, and release notes.
 
 ## v0.1.7 - 2024-08-27
 - Added CF worker namespace listing and selection.
