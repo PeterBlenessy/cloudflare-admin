@@ -146,16 +146,19 @@ watch(cfNamespaceId, async () => { await refreshKeyValuePairs(); });
                 @click:append="refreshKeyValuePairs()">
             </v-select>
 
-            <v-text-field class="ma-2" v-model="search" label="Search" prepend-inner-icon="mdi-magnify" variant="outlined"
-                single-line density="compact">
+            <v-text-field class="ma-2" v-model="search" label="Search" prepend-inner-icon="mdi-magnify"
+                variant="outlined" single-line density="compact">
             </v-text-field>
         </v-card-title>
 
-        <v-divider></v-divider>
+        <v-divider />
 
         <v-data-table width="100%" :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading"
             density="compact" fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
 
+            <template v-slot:header.id="{ column }">
+                {{ column.timestamp.toUpperCase() }}
+            </template>
             <template v-slot:no-data>
                 <v-btn color="primary" @click="refreshKeyValuePairs()" text="List KV pairs" />
             </template>

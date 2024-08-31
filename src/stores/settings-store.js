@@ -14,7 +14,7 @@ export const useSettingsStore = defineStore('settings', () => {
     }
 
     // Load initial state from local storage
-    const darkMode = ref(loadState('darkMode') || 'false');
+    const darkMode = ref(loadState('darkMode') || false);
     const cfAccountId = ref(loadState('cfAccountId') || '');
     const cfApiKey = ref(loadState('cfApiKey') || '');
     const cfNamespaceId = ref(loadState('cfNamespaceId') || '');

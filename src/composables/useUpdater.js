@@ -45,8 +45,6 @@ export function useUpdater() {
 
     return {
         updateInfo,
-        downloaded,
-        contentLength,
         checkForUpdates,
         downloadAndInstall
     };

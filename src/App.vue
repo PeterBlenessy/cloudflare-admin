@@ -9,35 +9,62 @@ import { cfVerifyApiKey } from "./api/cloudflare.js";
 import { storeToRefs } from 'pinia';
 import { useSettingsStore } from './stores/settings-store.js';
 import { useTheme } from 'vuetify';
+import { useUpdater } from './composables/useUpdater.js';
+
+const { checkForUpdates, downloadAndInstall } = useUpdater();
 
 const settingsStore = useSettingsStore();
-const { cfApiKey } = storeToRefs(settingsStore);
+const { cfApiKey, darkMode } = storeToRefs(settingsStore);
 
 const theme = useTheme();
 
 const isValidApiKey = ref(false);
 const showSettingsDialog = ref(false);
 const isUpdating = ref(false);
+const isUpdateAvailable = ref(false);
+const updaterTooltip = ref('Check for updates');
 
 const cfLogo = computed(() => new URL(`./assets/CF_logomark${isValidApiKey.value ? '' : (theme.global.current.value.dark ? '_white' : '_black')}.svg`, import.meta.url).href);
-const toggleTheme = () => { theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark'; }
+onMounted(() => { theme.global.name.value = darkMode.value ? 'dark' : 'light'; });
 onMounted(async () => { isValidApiKey.value = await cfVerifyApiKey(cfApiKey.value); });
+onMounted(() => {
+    checkForUpdates().then(update => {
+        if (update) {
+            isUpdateAvailable.value = true;
+            updaterTooltip.value = `Click to update to version ${update.version}`;
+        }
+    });
+});
 watch(cfApiKey, async () => { isValidApiKey.value = await cfVerifyApiKey(cfApiKey.value); });
+watch(darkMode, () => { theme.global.name.value = darkMode.value ? 'dark' : 'light'; });
 
+const handleClickUpdateButton = () => {
+    if (isUpdateAvailable.value) {
+        downloadAndInstall();
+    } else {
+        isUpdating.value = true;
+    }
+}
 </script>
 
 <template>
     <v-layout class="rounded rounded-md">
         <v-app-bar title="Cloudflare admin">
             <template v-slot:append>
-                <v-btn @click="showSettingsDialog = true" color="orange darken-2" variant="plain"
+                <v-btn @click="showSettingsDialog = true" color="orange-darken-2"
                     :append-icon="isValidApiKey ? 'mdi-link' : 'mdi-link-off'">
 
                     <v-img :src="cfLogo" width="30" />
                 </v-btn>
 
-                <v-btn variant="plain" icon="mdi-theme-light-dark" @click="toggleTheme" />
-                <v-btn variant="plain" icon="mdi-download" @click="isUpdating = true" :loading="isUpdating" />
+                <v-btn icon="mdi-theme-light-dark" @click="darkMode = !darkMode" />
+
+                <v-tooltip location="bottom center" :text="updaterTooltip">
+                    <template v-slot:activator="{ props }">
+                        <v-btn v-bind="props" icon="mdi-download" @click="handleClickUpdateButton()"
+                        :color="isUpdateAvailable ? 'orange darken-2' : ''" />
+                    </template>
+                </v-tooltip>
 
             </template>
         </v-app-bar>

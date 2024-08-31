@@ -27,7 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+
+## v0.1.8 - 2024-08-31
 - Added release info to updater dialog: version, date, and release notes.
+- Fixed issue where dark mode wasn't restored correctly.
+- Added automatic check for updates on app start, also reflected in update button behaviour.
+- Added support for download and install update when available.
 
 ## v0.1.7 - 2024-08-27
 - Added CF worker namespace listing and selection.

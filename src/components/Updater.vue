@@ -1,32 +1,31 @@
 <template>
-    <v-dialog v-model="isUpdating" max-width="350px" persistent>
+    <v-dialog v-model="isUpdating" max-width="350px" persistent scroll-strategy="block">
         <div>
-            <v-card :title="title" class="pa-2" max-width="350" prepend-icon="mdi-download">
+            <v-card :title="states[status].title" class="pa-2" max-width="350">
                 <template v-slot:append>
-                    <v-progress-circular v-show="status == 'checking'" color="primary" indeterminate="disable-shrink"
-                        size="24" width="3" />
+                    <v-tooltip location="bottom center" :text="states[status].tooltip">
+                        <template v-slot:activator="{ props }">
+                            <v-btn v-bind="props" :icon="states[status].icon" :loading="states[status].loading"
+                                @click="states[status].onClick()" density="comfortable" variant="plain" />
+                        </template>
+                    </v-tooltip>
                 </template>
 
                 <v-card-text v-if="status == 'available'" density="compact">
-                    <div>Version: {{ version }}</div>
-                    <div>Release date: {{ releaseDate }}</div>
-
-                    <!-- Generate a bulleted list -->
                     <v-card>
                         <v-card-text>
-                            <ul v-for="note in releaseNotes" :key="note">
-                                <li>{{ note }}</li>
-                            </ul>
+                            <div>Version: {{ version }}</div>
+                            <div>Release date: {{ releaseDate }}</div>
+                            <div>Release notes:</div>
+                            <div>
+                                <ul v-for="note in releaseNotes" :key="note">
+                                    <li>{{ note }}</li>
+                                </ul>
+                            </div>
                         </v-card-text>
                     </v-card>
 
                 </v-card-text>
-                <v-card-actions>
-                    <v-btn variant="plain" text="Cancel" @click="isUpdating = false" />
-                    <v-spacer />
-                    <v-btn v-show="status == 'available'" variant="tonal" color="primary" text="Update"
-                        @click="download()" />
-                </v-card-actions>
             </v-card>
         </div>
     </v-dialog>
@@ -37,9 +36,8 @@
 import { ref, watch } from 'vue';
 import { useUpdater } from '../composables/useUpdater.js';
 
-const { checkForUpdates, download } = useUpdater();
+const { checkForUpdates, downloadAndInstall } = useUpdater();
 
-const title = ref('Checking for updates');
 const text = ref('');
 const releaseDate = ref('');
 const version = ref('');
@@ -47,15 +45,45 @@ const releaseNotes = ref([]);
 const isUpdating = defineModel({ default: false });
 const status = ref('');
 
+// Updater dialog properties for updater statuses
+const states = ref({
+    'checking': {
+        title: 'Checking for updates',
+        icon: 'mdi-download',
+        loading: true,
+        tooltip: 'Cancel',
+        onClick: () => { isUpdating.value = false }
+    },
+    'available': {
+        title: 'Update available',
+        icon: 'mdi-download',
+        loading: false,
+        tooltip: 'Download and install',
+        onClick: () => downloadAndInstall()
+    },
+    'notAvailable': {
+        title: 'No updates available',
+        icon: 'mdi-close',
+        loading: false,
+        tooltip: 'Close',
+        onClick: () => { isUpdating.value = false }
+    },
+    'failed': {
+        title: 'Update failed',
+        icon: 'mdi-alert',
+        loading: false,
+        tooltip: 'Close',
+        onClick: () => { isUpdating.value = false }
+    }
 
+});
 
 watch(isUpdating, async () => {
-    if (isUpdating) {
+    if (isUpdating.value) {
         status.value = 'checking';
         checkForUpdates().then(update => {
             if (update) {
                 status.value = 'available';
-                title.value = 'Update available';
                 text.value = update.body;
 
                 releaseDate.value = update.date.split(' ')[0];
@@ -63,15 +91,12 @@ watch(isUpdating, async () => {
                 releaseNotes.value = update.body.split('- ');
                 // trim whitespaces in releasenotes and remove empty strings
                 releaseNotes.value = releaseNotes.value.map(note => note.trim()).filter(note => note);
-
             } else {
-                status.value = 'not-available';
-                title.value = 'No updates available';
+                status.value = 'notAvailable';
             }
         }).catch((error) => {
-            text.value = 'Update failed';
-        }).finally(() => {
-            // isUpdating.value = false;
+            status.value = 'failed';
+            console.log('Error checking for updates:', error);
         });
     }
 });
