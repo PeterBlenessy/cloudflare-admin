@@ -15,12 +15,15 @@ export const useSettingsStore = defineStore('settings', () => {
 
     // Load initial state from local storage
     const darkMode = ref(loadState('darkMode') || false);
+    
     const cfAccountId = ref(loadState('cfAccountId') || '');
     const cfApiKey = ref(loadState('cfApiKey') || '');
     const cfNamespaceId = ref(loadState('cfNamespaceId') || '');
     const cfNamespaceKeys = ref(loadState('cfNamespaceKeys') || []);
     const cfKeysCursor = ref(loadState('cfKeysCursor') || '');
     const cfKeyValuePairs = ref(loadState('cfKeyValuePairs') || []);
+
+    const isValidApiKey = ref(loadState('cfApiKey') || false);
 
     // Watch and save changes to local storage
     watch(darkMode, (newValue) => saveState('darkMode', newValue), { deep: true });
@@ -30,6 +33,7 @@ export const useSettingsStore = defineStore('settings', () => {
     watch(cfNamespaceKeys, (newValue) => saveState('cfNamespaceKeys', newValue), { deep: true });
     watch(cfKeysCursor, (newValue) => saveState('cfKeysCursor', newValue), { deep: true });
     watch(cfKeyValuePairs, (newValue) => saveState('cfKeyValuePairs', newValue), { deep: true });
+    watch(isValidApiKey, (newValue) => saveState('isValidApiKey', newValue), { deep: true });
 
     return {
         darkMode,
@@ -38,6 +42,7 @@ export const useSettingsStore = defineStore('settings', () => {
         cfNamespaceId,
         cfNamespaceKeys,
         cfKeysCursor,
-        cfKeyValuePairs
+        cfKeyValuePairs,
+        isValidApiKey
     }
 });

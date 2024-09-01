@@ -6,7 +6,7 @@ import { useSettingsStore } from '../stores/settings-store.js';
 import { cfListNamespaces } from "../api/cloudflare.js";
 
 const settingsStore = useSettingsStore();
-const { cfAccountId, cfApiKey, cfNamespaceId, cfKeyValuePairs, cfNamespaceKeys, cfKeysCursor } = storeToRefs(settingsStore);
+const { isValidApiKey, cfAccountId, cfApiKey, cfNamespaceId, cfKeyValuePairs, cfNamespaceKeys, cfKeysCursor } = storeToRefs(settingsStore);
 
 const baseUrl = 'https://api.cloudflare.com/client/v4';
 
@@ -21,15 +21,6 @@ const options = {
         'Content-Type': 'application/json'
     }
 };
-
-const listNamespaces = async () => {
-    const result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
-
-    return result.map(item => ({
-        title: item.title,
-        value: item.id
-    }));
-}
 
 // Lists namespace keys
 const listKeys = async (limit = 1000, cursor) => {
@@ -52,19 +43,23 @@ const listAllKeys = async () => {
     let fetchMore = true;
     let apiCallCount = 0;
 
-    while (fetchMore) {
+    try {
+        while (fetchMore) {
 
-        const { keys, info } = await listKeys(limit, cursor);
+            const { keys, info } = await listKeys(limit, cursor);
 
-        apiCallCount++;
-        allKeys = allKeys.concat(keys);
-        cursor = info.cursor;
+            apiCallCount++;
+            allKeys = allKeys.concat(keys);
+            cursor = info.cursor;
 
-        console.log(`API calls: ${apiCallCount}. Fetched ${keys.length} keys. Total keys fetched: ${allKeys.length}`);
+            console.log(`API calls: ${apiCallCount}. Fetched ${keys.length} keys. Total keys fetched: ${allKeys.length}`);
 
-        // Save cursor so we don't fetch all keys again
-        if (cursor) cfKeysCursor.value = cursor;
-        if (!cursor || info.count < limit) fetchMore = false;
+            // Save cursor so we don't fetch all keys again
+            if (cursor) cfKeysCursor.value = cursor;
+            if (!cursor || info.count < limit) fetchMore = false;
+        }
+    } catch (error) {
+        console.error('Error fetching keys:', error);
     }
 
     return { keys: allKeys, apiCalls: apiCallCount, cursor: cursor };
@@ -130,11 +125,26 @@ const kvHeaders = ref([
 ]);
 
 const search = ref('')
+
+const loadingNamespaces = ref(false);
 const namespaceOptions = ref([]);
 
-onMounted(async () => { namespaceOptions.value = await listNamespaces(); });
+const loadNamespaceOptions = async () => {
+    if (isValidApiKey.value == false) return;
+    
+    loadingNamespaces.value = true;
+    let result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
 
-watch(cfNamespaceId, async () => { await refreshKeyValuePairs(); });
+    namespaceOptions.value = result.map(item => ({
+        title: item.title,
+        value: item.id
+    }));
+    loadingNamespaces.value = false;
+}
+
+onMounted(async () => await loadNamespaceOptions() );
+watch(isValidApiKey, async () => await loadNamespaceOptions());
+watch(cfNamespaceId, async () => await refreshKeyValuePairs());
 
 </script>
 
@@ -142,8 +152,8 @@ watch(cfNamespaceId, async () => { await refreshKeyValuePairs(); });
     <v-card flat width="100%">
         <v-card-title class="d-flex flex-wrap">
             <v-select class="flex-1-0 ma-2" v-model="cfNamespaceId" :items="namespaceOptions" label="Select namespace"
-                prepend-inner-icon="mdi-database" append-icon="mdi-refresh" variant="outlined" density="compact"
-                @click:append="refreshKeyValuePairs()">
+                prepend-inner-icon="mdi-database" append-icon="mdi-cloud-sync" variant="outlined" density="compact"
+                @click:append="refreshKeyValuePairs()" :disabled="isValidApiKey == false" :loading="loadingNamespaces">
             </v-select>
 
             <v-text-field class="ma-2" v-model="search" label="Search" prepend-inner-icon="mdi-magnify"
@@ -160,7 +170,8 @@ watch(cfNamespaceId, async () => { await refreshKeyValuePairs(); });
                 {{ column.timestamp.toUpperCase() }}
             </template>
             <template v-slot:no-data>
-                <v-btn color="primary" @click="refreshKeyValuePairs()" text="List KV pairs" />
+                <v-btn color="orange-darken-2" prepend-icon="mdi-cloud-sync" text="Fetch KV pairs"
+                    :disabled="isValidApiKey == false" @click="refreshKeyValuePairs()"/>
             </template>
 
             <template v-slot:item.actions="{ item }">

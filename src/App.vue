@@ -14,11 +14,10 @@ import { useUpdater } from './composables/useUpdater.js';
 const { checkForUpdates, downloadAndInstall } = useUpdater();
 
 const settingsStore = useSettingsStore();
-const { cfApiKey, darkMode } = storeToRefs(settingsStore);
+const { cfApiKey, darkMode, isValidApiKey } = storeToRefs(settingsStore);
 
 const theme = useTheme();
 
-const isValidApiKey = ref(false);
 const showSettingsDialog = ref(false);
 const isUpdating = ref(false);
 const isUpdateAvailable = ref(false);
@@ -53,21 +52,29 @@ const handleClickUpdateButton = () => {
     <v-layout class="rounded rounded-md">
         <v-app-bar title="Cloudflare admin">
             <template v-slot:append>
-                <v-btn @click.stop="showSettingsDialog = true" color="orange-darken-2"
-                    :append-icon="isValidApiKey ? 'mdi-link' : 'mdi-link-off'">
+                <v-tooltip location="bottom center" text="Cloudflare API settings">
+                    <template v-slot:activator="{ props }">
+                        <v-btn v-bind="props" @click.stop="showSettingsDialog = true"
+                            :color="isValidApiKey ? 'orange-darken-2' : ''"
+                            :append-icon="isValidApiKey ? 'mdi-link' : 'mdi-link-off'">
 
-                    <v-img :src="cfLogo" width="30" />
-                </v-btn>
+                            <v-img :src="cfLogo" width="30" />
+                        </v-btn>
+                    </template>
+                </v-tooltip>
 
-                <v-btn icon="mdi-theme-light-dark" @click="darkMode = !darkMode" />
+                <v-tooltip location="bottom center" text="Toggle dark mode">
+                    <template v-slot:activator="{ props }">
+                        <v-btn v-bind="props" icon="mdi-theme-light-dark" @click="darkMode = !darkMode" />
+                    </template>
+                </v-tooltip>
 
                 <v-tooltip location="bottom center" :text="updaterTooltip">
                     <template v-slot:activator="{ props }">
                         <v-btn v-bind="props" icon="mdi-download" @click.stop="handleClickUpdateButton()"
-                        :color="isUpdateAvailable ? 'orange darken-2' : ''" />
+                            :color="isUpdateAvailable ? 'orange darken-2' : ''" />
                     </template>
                 </v-tooltip>
-
             </template>
         </v-app-bar>
         <v-main class="d-flex align-center justify-center" style="min-height: 300px;">

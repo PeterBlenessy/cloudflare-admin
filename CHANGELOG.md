@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.10 - 2024-09-01
+- Added tooltip to app buttons.
+- Changed key-value pair refresh button icon to cloud-sync.
+- Disabled form elements and buttons when API key is invalid.
+- Added error handling when fetching namespaceIds.
+
 ## v0.1.9 - 2024-09-01
 - Fixed bug where app hangs and CPU usage spikes when clicking outside of dialogs due to event propagation not being stopped on click.
 - Fixed issue where the available update was not downloaded and installed as expected.
