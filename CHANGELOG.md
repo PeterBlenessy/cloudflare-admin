@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.9 - 2024-09-01
+- Fixed bug where app hangs and CPU usage spikes when clicking outside of dialogs due to event propagation not being stopped on click.
+- Fixed issue where the available update was not downloaded and installed as expected.
+
 ## v0.1.8 - 2024-08-31
 - Added release info to updater dialog: version, date, and release notes.
 - Fixed issue where dark mode wasn't restored correctly.

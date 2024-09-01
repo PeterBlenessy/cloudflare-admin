@@ -44,6 +44,7 @@ const version = ref('');
 const releaseNotes = ref([]);
 const isUpdating = defineModel({ default: false });
 const status = ref('');
+let newUpdate = null;
 
 // Updater dialog properties for updater statuses
 const states = ref({
@@ -59,7 +60,7 @@ const states = ref({
         icon: 'mdi-download',
         loading: false,
         tooltip: 'Download and install',
-        onClick: () => downloadAndInstall()
+        onClick: () => downloadAndInstall(newUpdate)
     },
     'notAvailable': {
         title: 'No updates available',
@@ -84,6 +85,7 @@ watch(isUpdating, async () => {
         checkForUpdates().then(update => {
             if (update) {
                 status.value = 'available';
+                newUpdate = update;
                 text.value = update.body;
 
                 releaseDate.value = update.date.split(' ')[0];

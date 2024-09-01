@@ -23,6 +23,7 @@ const showSettingsDialog = ref(false);
 const isUpdating = ref(false);
 const isUpdateAvailable = ref(false);
 const updaterTooltip = ref('Check for updates');
+let newUpdate = null;
 
 const cfLogo = computed(() => new URL(`./assets/CF_logomark${isValidApiKey.value ? '' : (theme.global.current.value.dark ? '_white' : '_black')}.svg`, import.meta.url).href);
 onMounted(() => { theme.global.name.value = darkMode.value ? 'dark' : 'light'; });
@@ -31,6 +32,7 @@ onMounted(() => {
     checkForUpdates().then(update => {
         if (update) {
             isUpdateAvailable.value = true;
+            newUpdate = update;
             updaterTooltip.value = `Click to update to version ${update.version}`;
         }
     });
@@ -40,7 +42,7 @@ watch(darkMode, () => { theme.global.name.value = darkMode.value ? 'dark' : 'lig
 
 const handleClickUpdateButton = () => {
     if (isUpdateAvailable.value) {
-        downloadAndInstall();
+        downloadAndInstall(newUpdate);
     } else {
         isUpdating.value = true;
     }
@@ -51,7 +53,7 @@ const handleClickUpdateButton = () => {
     <v-layout class="rounded rounded-md">
         <v-app-bar title="Cloudflare admin">
             <template v-slot:append>
-                <v-btn @click="showSettingsDialog = true" color="orange-darken-2"
+                <v-btn @click.stop="showSettingsDialog = true" color="orange-darken-2"
                     :append-icon="isValidApiKey ? 'mdi-link' : 'mdi-link-off'">
 
                     <v-img :src="cfLogo" width="30" />
@@ -61,7 +63,7 @@ const handleClickUpdateButton = () => {
 
                 <v-tooltip location="bottom center" :text="updaterTooltip">
                     <template v-slot:activator="{ props }">
-                        <v-btn v-bind="props" icon="mdi-download" @click="handleClickUpdateButton()"
+                        <v-btn v-bind="props" icon="mdi-download" @click.stop="handleClickUpdateButton()"
                         :color="isUpdateAvailable ? 'orange darken-2' : ''" />
                     </template>
                 </v-tooltip>

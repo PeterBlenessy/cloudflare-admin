@@ -12,7 +12,7 @@ export function useUpdater() {
         const update = await check();
         if (update) {
             updateInfo.value = update;
-            console.log(`found update ${update.version} from ${update.date} with notes ${update.body}`);
+            console.log(`found update ${update.version} from ${update.date} with following release notes \n${update.body}`);
         } else {
             console.log('no updates found');
         }
