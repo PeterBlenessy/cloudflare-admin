@@ -19,7 +19,7 @@ const { cfApiKey, darkMode, isValidApiKey } = storeToRefs(settingsStore);
 const theme = useTheme();
 
 const showSettingsDialog = ref(false);
-const isUpdating = ref(false);
+const updaterStatus = ref(false);
 const isUpdateAvailable = ref(false);
 const updaterTooltip = ref('Check for updates');
 let newUpdate = null;
@@ -40,11 +40,12 @@ watch(cfApiKey, async () => { isValidApiKey.value = await cfVerifyApiKey(cfApiKe
 watch(darkMode, () => { theme.global.name.value = darkMode.value ? 'dark' : 'light'; });
 
 const handleClickUpdateButton = () => {
-    if (isUpdateAvailable.value) {
-        downloadAndInstall(newUpdate);
-    } else {
-        isUpdating.value = true;
-    }
+    // if (isUpdateAvailable.value) {
+    //     downloadAndInstall(newUpdate);
+    // } else {
+    //     updaterStatus.value = true;
+    // }
+    updaterStatus.value = true;
 }
 </script>
 
@@ -82,12 +83,9 @@ const handleClickUpdateButton = () => {
             <KeyValuePairs />
         </v-main>
 
-        <!-- Settings dialog -->
-        <!-- showSettingsDialog is shared between parent and child component -->
-        <!-- Reference: https://blog.bitsrc.io/vue-js-3-3s-definemodel-enhancing-parent-child-component-communication-d43eca5cb089 -->
         <Settings v-model="showSettingsDialog" />
 
-        <Updater v-model="isUpdating" />
+        <Updater v-model="updaterStatus" />
 
     </v-layout>
 </template>

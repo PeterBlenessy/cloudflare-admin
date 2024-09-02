@@ -1,29 +1,37 @@
 <template>
-    <v-dialog v-model="isUpdating" max-width="350px" persistent scroll-strategy="block">
+    <v-dialog v-model="updaterStatus" max-width="350px" scroll-strategy="block" 
+        :persistent="status=='updating'">
+
         <div>
-            <v-card :title="states[status].title" class="pa-2" max-width="350">
+            <v-card :title="states[status].title" class="pa-2" max-width="450">
+
                 <template v-slot:append>
                     <v-tooltip location="bottom center" :text="states[status].tooltip">
                         <template v-slot:activator="{ props }">
-                            <v-btn v-bind="props" :icon="states[status].icon" :loading="states[status].loading"
-                                @click="states[status].onClick()" density="comfortable" variant="plain" />
+    
+                            <v-btn v-if="status != 'updating'" v-bind="props" color="orange-darken-2"
+                                density="comfortable" variant="text" :icon="states[status].icon"
+                                :loading="states[status].loading" @click="states[status].onClick()" />
+
+                            <v-progress-circular v-if="status == 'updating'" color="orange-darken-2" 
+                                :model-value="progress">
+                            </v-progress-circular>
+
                         </template>
                     </v-tooltip>
                 </template>
 
+
                 <v-card-text v-if="status == 'available'" density="compact">
-                    <v-card>
-                        <v-card-text>
-                            <div>Version: {{ version }}</div>
-                            <div>Release date: {{ releaseDate }}</div>
-                            <div>Release notes:</div>
-                            <div>
-                                <ul v-for="note in releaseNotes" :key="note">
-                                    <li>{{ note }}</li>
-                                </ul>
-                            </div>
-                        </v-card-text>
-                    </v-card>
+
+                    <div class="text-caption">Version: {{ version }}</div>
+                    <div class="text-caption">Release date: {{ releaseDate }}</div>
+                    <div class="text-overline mt-2">Release notes</div>
+                    <div class="text-caption">
+                        <ul v-for="note in releaseNotes" :key="note" class="pl-4">
+                            <li>{{ note }}</li>
+                        </ul>
+                    </div>
 
                 </v-card-text>
             </v-card>
@@ -36,13 +44,14 @@
 import { ref, watch } from 'vue';
 import { useUpdater } from '../composables/useUpdater.js';
 
-const { checkForUpdates, downloadAndInstall } = useUpdater();
+const { checkForUpdates, downloadAndInstall, downloaded, contentLength } = useUpdater();
+
+const updaterStatus = defineModel({ default: false });
 
 const text = ref('');
 const releaseDate = ref('');
 const version = ref('');
 const releaseNotes = ref([]);
-const isUpdating = defineModel({ default: false });
 const status = ref('');
 let newUpdate = null;
 
@@ -53,34 +62,44 @@ const states = ref({
         icon: 'mdi-download',
         loading: true,
         tooltip: 'Cancel',
-        onClick: () => { isUpdating.value = false }
+        onClick: () => { updaterStatus.value = false }
     },
     'available': {
         title: 'Update available',
         icon: 'mdi-download',
         loading: false,
         tooltip: 'Download and install',
-        onClick: () => downloadAndInstall(newUpdate)
+        onClick: () => { status.value = 'updating'; downloadAndInstall(newUpdate) }
     },
     'notAvailable': {
         title: 'No updates available',
         icon: 'mdi-close',
         loading: false,
         tooltip: 'Close',
-        onClick: () => { isUpdating.value = false }
+        onClick: () => { updaterStatus.value = false }
     },
     'failed': {
         title: 'Update failed',
         icon: 'mdi-alert',
         loading: false,
         tooltip: 'Close',
-        onClick: () => { isUpdating.value = false }
+        onClick: () => { updaterStatus.value = false }
+    },
+    'updating': {
+        title: 'Updating',
+        icon: '',
+        loading: false,
+        tooltip: 'Installing update',
+        onClick: () => {  }
     }
-
 });
 
-watch(isUpdating, async () => {
-    if (isUpdating.value) {
+const progress = ref(0);
+
+watch(downloaded, () => { progress.value = Math.round((downloaded.value / contentLength.value) * 100); });
+
+watch(updaterStatus, async () => {
+    if (updaterStatus.value) {
         status.value = 'checking';
         checkForUpdates().then(update => {
             if (update) {

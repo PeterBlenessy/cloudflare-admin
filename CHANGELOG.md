@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.11 - 2024-09-02
+- Changed formatting of release notes in updater dialog.
+- Added circular progress indicator in updater dialog during update download.
+- Removed automatic update when update is available and user clicks updater button. Displaying updater doalog instead, until updater progress indication is implemented without dialog.
+
 ## v0.1.10 - 2024-09-01
 - Added tooltip to app buttons.
 - Changed key-value pair refresh button icon to cloud-sync.

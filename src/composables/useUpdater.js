@@ -39,13 +39,15 @@ export function useUpdater() {
             });
 
             console.log('update installed');
-            await relaunch();
+            //await relaunch();
         }
     }
 
     return {
         updateInfo,
         checkForUpdates,
-        downloadAndInstall
+        downloadAndInstall,
+        downloaded,
+        contentLength
     };
 }

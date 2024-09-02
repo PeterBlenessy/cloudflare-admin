@@ -117,11 +117,10 @@ const refreshKeyValuePairs = async () => {
 
 // { key, timestamp, type, text, data }
 const kvHeaders = ref([
-    { title: 'Timestamp', key: 'timestamp' },
+    { title: 'Timestamp', key: 'timestamp', width: '180px' },
     { title: 'Type', key: 'type' },
-    { title: 'Text', key: 'text' },
-    { title: 'Data', key: 'data' },
-    { title: 'Actions', key: 'actions', sortable: false }
+    { title: 'Text', key: 'text', width: '210px' },
+    { title: 'Data', key: 'data' }
 ]);
 
 const search = ref('')
@@ -131,7 +130,7 @@ const namespaceOptions = ref([]);
 
 const loadNamespaceOptions = async () => {
     if (isValidApiKey.value == false) return;
-    
+
     loadingNamespaces.value = true;
     let result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
 
@@ -142,7 +141,7 @@ const loadNamespaceOptions = async () => {
     loadingNamespaces.value = false;
 }
 
-onMounted(async () => await loadNamespaceOptions() );
+onMounted(async () => await loadNamespaceOptions());
 watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => await refreshKeyValuePairs());
 
@@ -166,16 +165,9 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
         <v-data-table width="100%" :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading"
             density="compact" fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
 
-            <template v-slot:header.id="{ column }">
-                {{ column.timestamp.toUpperCase() }}
-            </template>
             <template v-slot:no-data>
                 <v-btn color="orange-darken-2" prepend-icon="mdi-cloud-sync" text="Fetch KV pairs"
-                    :disabled="isValidApiKey == false" @click="refreshKeyValuePairs()"/>
-            </template>
-
-            <template v-slot:item.actions="{ item }">
-                <v-icon size="small" @click="deleteItem(item)" icon="mdi-delete" />
+                    :disabled="isValidApiKey == false" @click="refreshKeyValuePairs()" />
             </template>
 
         </v-data-table>
