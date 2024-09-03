@@ -1,25 +1,37 @@
 <script setup>
 import { onMounted, ref, watch } from "vue";
 import { fetch } from "@tauri-apps/plugin-http";
-import { storeToRefs } from 'pinia';
-import { useSettingsStore } from '../stores/settings-store.js';
+import { storeToRefs } from "pinia";
+import { useSettingsStore } from "../stores/settings-store.js";
 import { cfListNamespaces } from "../api/cloudflare.js";
 
 const settingsStore = useSettingsStore();
-const { isValidApiKey, cfAccountId, cfApiKey, cfNamespaceId, cfKeyValuePairs, cfNamespaceKeys, cfKeysCursor } = storeToRefs(settingsStore);
+const {
+    isValidApiKey,
+    cfAccountId,
+    cfApiKey,
+    cfNamespaceId,
+    cfKeyValuePairs,
+    cfNamespaceKeys,
+    cfKeysCursor,
+} = storeToRefs(settingsStore);
 
-const baseUrl = 'https://api.cloudflare.com/client/v4';
+const baseUrl = "https://api.cloudflare.com/client/v4";
 
-const urlListNamespaceKeys = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/keys`;
-const urlReadKeyValuePair = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/values/`;
+const urlListNamespaceKeys =
+    baseUrl +
+    `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/keys`;
+const urlReadKeyValuePair =
+    baseUrl +
+    `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/values/`;
 
 //const url = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${NAMESPACE_ID}/values/${key_name}`;
 const options = {
-    method: 'GET',
+    method: "GET",
     headers: {
-        'Authorization': `Bearer ${cfApiKey.value}`,
-        'Content-Type': 'application/json'
-    }
+        Authorization: `Bearer ${cfApiKey.value}`,
+        "Content-Type": "application/json",
+    },
 };
 
 // Lists namespace keys
@@ -33,7 +45,7 @@ const listKeys = async (limit = 1000, cursor) => {
     }
     const data = await response.json();
     return { keys: data.result, info: data.result_info };
-}
+};
 
 // Fetch all key-value pairs from stored cursor
 const listAllKeys = async () => {
@@ -45,25 +57,26 @@ const listAllKeys = async () => {
 
     try {
         while (fetchMore) {
-
             const { keys, info } = await listKeys(limit, cursor);
 
             apiCallCount++;
             allKeys = allKeys.concat(keys);
             cursor = info.cursor;
 
-            console.log(`API calls: ${apiCallCount}. Fetched ${keys.length} keys. Total keys fetched: ${allKeys.length}`);
+            console.log(
+                `API calls: ${apiCallCount}. Fetched ${keys.length} keys. Total keys fetched: ${allKeys.length}`,
+            );
 
             // Save cursor so we don't fetch all keys again
             if (cursor) cfKeysCursor.value = cursor;
             if (!cursor || info.count < limit) fetchMore = false;
         }
     } catch (error) {
-        console.error('Error fetching keys:', error);
+        console.error("Error fetching keys:", error);
     }
 
     return { keys: allKeys, apiCalls: apiCallCount, cursor: cursor };
-}
+};
 
 const loading = ref(false);
 
@@ -80,7 +93,10 @@ const refreshKeyValuePairs = async () => {
         apiCallCount += apiCalls;
 
         // Filter out new keys
-        const newKeys = keys.filter(key => !cfNamespaceKeys.value.some(item => item.name === key.name));
+        const newKeys = keys.filter(
+            (key) =>
+                !cfNamespaceKeys.value.some((item) => item.name === key.name),
+        );
 
         console.log(`Fetched ${keys.length} keys. New keys: ${newKeys.length}`);
 
@@ -93,9 +109,14 @@ const refreshKeyValuePairs = async () => {
 
         // Fetch values for the new keys
         const promises = lastKeys.map(async (key) => {
-            const response = await fetch(urlReadKeyValuePair + key.name, options);
+            const response = await fetch(
+                urlReadKeyValuePair + key.name,
+                options,
+            );
             if (!response.ok) {
-                throw new Error(`Fetch key:value error! status: ${JSON.stringify(response)}`);
+                throw new Error(
+                    `Fetch key:value error! status: ${JSON.stringify(response)}`,
+                );
             }
             const data = await response.json();
             apiCallCount++;
@@ -107,23 +128,22 @@ const refreshKeyValuePairs = async () => {
         // We do not want to include it in the loop above for performance reasons.
         await Promise.all(promises);
         cfKeyValuePairs.value = [...kvPairs];
-
     } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error("Error fetching data:", error);
     } finally {
         loading.value = false;
     }
-}
+};
 
 // { key, timestamp, type, text, data }
 const kvHeaders = ref([
-    { title: 'Timestamp', key: 'timestamp', width: '180px' },
-    { title: 'Type', key: 'type' },
-    { title: 'Text', key: 'text', width: '210px' },
-    { title: 'Data', key: 'data' }
+    { title: "Timestamp", key: "timestamp", width: "180px" },
+    { title: "Type", key: "type" },
+    { title: "Text", key: "text", width: "210px" },
+    { title: "Data", key: "data" },
 ]);
 
-const search = ref('')
+const search = ref("");
 
 const loadingNamespaces = ref(false);
 const namespaceOptions = ref([]);
@@ -134,42 +154,116 @@ const loadNamespaceOptions = async () => {
     loadingNamespaces.value = true;
     let result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
 
-    namespaceOptions.value = result.map(item => ({
+    namespaceOptions.value = result.map((item) => ({
         title: item.title,
-        value: item.id
+        value: item.id,
     }));
     loadingNamespaces.value = false;
-}
+};
+
+const kvImportProgress = ref(0);
+const kvImportMessage = ref("");
+
+const fetchAllKeyValuePairs = () => {
+    loading.value = true;
+    error.value = null;
+    kvImportMessage.value = "Starting fetch...";
+
+    const worker = new Worker(
+        new URL("../workers/cfWorker.js", import.meta.url),
+    );
+
+    worker.postMessage({ cfApiKey, cfNamespaceId });
+
+    worker.onmessage = (e) => {
+        const { status, message, totalFetched, totalKeys, allKeyValuePairs } =
+            e.data;
+
+        if (status === "fetching" || status === "waiting") {
+            kvImportMessage.value = message;
+        } else if (status === "progress") {
+            kvImportMessage.value = `Fetched ${totalFetched} out of ${totalKeys} key-value pairs`;
+            kvImportProgress.value = Math.round(
+                (totalFetched.value / totalKeys.value) * 100,
+            );
+        } else if (status === "completed") {
+            keyValuePairs.value = allKeyValuePairs;
+            loading.value = false;
+            kvImportMessage.value = "Fetch completed";
+        }
+    };
+
+    worker.onerror = (e) => {
+        error.value = `Error: ${e.message}`;
+        loading.value = false;
+    };
+};
 
 onMounted(async () => await loadNamespaceOptions());
 watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => await refreshKeyValuePairs());
-
 </script>
 
 <template>
     <v-card flat width="100%">
         <v-card-title class="d-flex flex-wrap">
-            <v-select class="flex-1-0 ma-2" v-model="cfNamespaceId" :items="namespaceOptions" label="Select namespace"
-                prepend-inner-icon="mdi-database" append-icon="mdi-cloud-sync" variant="outlined" density="compact"
-                @click:append="refreshKeyValuePairs()" :disabled="isValidApiKey == false" :loading="loadingNamespaces">
+            <v-select
+                class="flex-1-0 ma-2"
+                v-model="cfNamespaceId"
+                :items="namespaceOptions"
+                label="Select namespace"
+                prepend-inner-icon="mdi-database"
+                append-icon="mdi-cloud-sync"
+                variant="outlined"
+                density="compact"
+                @click:append="refreshKeyValuePairs()"
+                :disabled="isValidApiKey == false"
+                :loading="loadingNamespaces"
+            >
             </v-select>
 
-            <v-text-field class="ma-2" v-model="search" label="Search" prepend-inner-icon="mdi-magnify"
-                variant="outlined" single-line density="compact">
+            <v-text-field
+                class="ma-2"
+                v-model="search"
+                label="Search"
+                prepend-inner-icon="mdi-magnify"
+                variant="outlined"
+                single-line
+                density="compact"
+            >
             </v-text-field>
+
+            <v-progress-linear
+                v-model="kvImportProgress"
+                color="amber"
+                height="25"
+            ></v-progress-linear>
         </v-card-title>
 
         <v-divider />
 
-        <v-data-table width="100%" :headers="kvHeaders" :items="cfKeyValuePairs" item-value="key" :loading="loading"
-            density="compact" fixed-header height="90vh" :search="search" hide-default-footer items-per-page="-1">
-
+        <v-data-table
+            width="100%"
+            :headers="kvHeaders"
+            :items="cfKeyValuePairs"
+            item-value="key"
+            :loading="loading"
+            density="compact"
+            fixed-header
+            height="90vh"
+            :search="search"
+            hide-default-footer
+            items-per-page="-1"
+        >
             <template v-slot:no-data>
-                <v-btn color="orange-darken-2" prepend-icon="mdi-cloud-sync" text="Fetch KV pairs"
-                    :disabled="isValidApiKey == false" @click="refreshKeyValuePairs()" />
+                <v-btn
+                    color="orange-darken-2"
+                    prepend-icon="mdi-cloud-sync"
+                    text="Fetch KV pairs"
+                    :disabled="isValidApiKey == false"
+                    @click="refreshKeyValuePairs()"
+                />
             </template>
-
         </v-data-table>
     </v-card>
 </template>
