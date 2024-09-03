@@ -1,7 +1,15 @@
-import { cfListKeys, cfReadKeyValuePair } from "../api/cloudflare.js";
-
+// import { cfListKeys, cfReadKeyValuePair } from "../api/cloudflare.js";
+importScripts("../api/cloudflare.js");
 self.onmessage = async function (e) {
     const { apiKey, accountId, namespaceId } = e.data;
+
+    console.log("[woker] - fetching key-value pairs");
+    self.postMessage({
+        status: "error",
+        message: `Fetching started`,
+    });
+
+    return;
 
     let limit = 1000;
     let cursor = null;

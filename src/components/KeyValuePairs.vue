@@ -3,7 +3,11 @@ import { onMounted, ref, watch } from "vue";
 import { fetch } from "@tauri-apps/plugin-http";
 import { storeToRefs } from "pinia";
 import { useSettingsStore } from "../stores/settings-store.js";
-import { cfListNamespaces } from "../api/cloudflare.js";
+import {
+    cfListNamespaces,
+    cfListKeys,
+    cfReadKeyValuePair,
+} from "../api/cloudflare.js";
 
 const settingsStore = useSettingsStore();
 const {
@@ -162,41 +166,106 @@ const loadNamespaceOptions = async () => {
 };
 
 const kvImportProgress = ref(0);
+const kvImportStatus = ref("");
 const kvImportMessage = ref("");
+const kvImportError = ref(null);
 
-const fetchAllKeyValuePairs = () => {
-    loading.value = true;
-    error.value = null;
+const fetchAllKeyValuePairs = async () => {
+    kvImportError.value = null;
     kvImportMessage.value = "Starting fetch...";
 
-    const worker = new Worker(
-        new URL("../workers/cfWorker.js", import.meta.url),
-    );
+    const limit = 1000;
+    const apiCallLimit = 1000;
+    let cursor = null;
+    let allKeyValuePairs = [];
+    let totalFetched = 0;
+    let allKeys = [];
+    let apiCallCount = 0;
 
-    worker.postMessage({ cfApiKey, cfNamespaceId });
+    // Function to wait for a specified time
+    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-    worker.onmessage = (e) => {
-        const { status, message, totalFetched, totalKeys, allKeyValuePairs } =
-            e.data;
+    kvImportStatus.value = "fetching";
+    kvImportMessage.value = `Fetching all key-value pairs...`;
 
-        if (status === "fetching" || status === "waiting") {
-            kvImportMessage.value = message;
-        } else if (status === "progress") {
-            kvImportMessage.value = `Fetched ${totalFetched} out of ${totalKeys} key-value pairs`;
-            kvImportProgress.value = Math.round(
-                (totalFetched.value / totalKeys.value) * 100,
-            );
-        } else if (status === "completed") {
-            keyValuePairs.value = allKeyValuePairs;
-            loading.value = false;
-            kvImportMessage.value = "Fetch completed";
+    try {
+        const { keys, apiCalls } = await listAllKeys();
+        apiCallCount += apiCalls;
+
+        // Filter out new keys
+        const newKeys = keys.filter(
+            (key) =>
+                !cfNamespaceKeys.value.some((item) => item.name === key.name),
+        );
+
+        console.log(`Fetched ${keys.length} keys. New keys: ${newKeys.length}`);
+
+        // Store new keys in local storage
+        cfNamespaceKeys.value = [...cfNamespaceKeys.value, ...newKeys];
+
+        // Check if need to wait
+        if (apiCallCount >= apiCallLimit) {
+            kvImportStatus.value = "waiting";
+            kvImportMessage.value =
+                "API call limit reached. Waiting for 5 minutes before continuing.";
+
+            await wait(5 * 60 * 1000);
+            apiCallCount = 0;
         }
-    };
 
-    worker.onerror = (e) => {
-        error.value = `Error: ${e.message}`;
-        loading.value = false;
-    };
+        let batchSize = Math.min(
+            apiCallLimit - apiCallCount,
+            keys.length - allKeyValuePairs.length,
+        );
+        console.log(`Set batch size to ${batchSize}`);
+
+        // Fetch values for each key in batches
+        for (let i = 0; i < keys.length; i += batchSize) {
+            const batch = keys.slice(i, i + batchSize);
+
+            kvImportStatus.value = "fetching";
+            kvImportMessage.value = `Fetching values for keys ${i + 1} to ${i + batch.length}`;
+
+            const fetchPromises = batch.map(async (key) => {
+                apiCallCount++;
+                const value = await cfReadKeyValuePair(
+                    cfApiKey.value,
+                    cfAccountId.value,
+                    cfNamespaceId.value,
+                    key.name,
+                );
+                return { key: key.name, ...value };
+            });
+
+            const keyValuePairs = await Promise.all(fetchPromises);
+            allKeyValuePairs = allKeyValuePairs.concat(keyValuePairs);
+
+            cfKeyValuePairs.value = cfKeyValuePairs.value.concat(keyValuePairs);
+
+            totalFetched += allKeyValuePairs.length;
+
+            kvImportStatus.value = "progress";
+            kvImportProgress.value = Math.round(
+                (totalFetched / keys.length) * 100,
+            );
+
+            if (apiCallCount >= apiCallLimit) {
+                kvImportStatus.value = "waiting";
+                kvImportMessage.value =
+                    "API call limit reached. Waiting for 5 minutes before continuing.";
+
+                console.log(
+                    "API call limit reached. Waiting for 5 minutes before continuing.",
+                );
+                await wait(5 * 60 * 1000);
+                apiCallCount = 0;
+            }
+        }
+        kvImportStatus.value = "completed";
+    } catch (error) {
+        console.error("Error fetching data:", error);
+    }
+    // keyValuePairs.value = allKeyValuePairs;
 };
 
 onMounted(async () => await loadNamespaceOptions());
@@ -237,7 +306,17 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                 v-model="kvImportProgress"
                 color="amber"
                 height="25"
-            ></v-progress-linear>
+            >
+                <template v-slot:default="{ value }">
+                    <div class="text-subtitle-1 text-center">
+                        {{ Math.ceil(value) }}%
+                    </div>
+                </template>
+            </v-progress-linear>
+            <div>
+                {{ kvImportError }}
+                {{ kvImportMessage }}
+            </div>
         </v-card-title>
 
         <v-divider />
@@ -261,7 +340,7 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                     prepend-icon="mdi-cloud-sync"
                     text="Fetch KV pairs"
                     :disabled="isValidApiKey == false"
-                    @click="refreshKeyValuePairs()"
+                    @click="fetchAllKeyValuePairs()"
                 />
             </template>
         </v-data-table>

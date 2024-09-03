@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+- Started batched download of all key-value pairs.
 
 ## v0.1.12 - 2024-09-03
 - Added progress indication when updating from toolbar, i.e. without a dialog.
