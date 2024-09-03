@@ -28,6 +28,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.12 - 2024-09-03
+- Added progress indication when updating from toolbar, i.e. without a dialog.
+- Added option for user to relaunch application after install is finished.
+- Updated logs from updater.
+
 ## v0.1.11 - 2024-09-02
 - Changed formatting of release notes in updater dialog.
 - Added circular progress indicator in updater dialog during update download.
@@ -81,4 +86,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## v0.1.0 - 2024-08-18
 - Initial commit. Supports reading CF worker KV pairs.
-

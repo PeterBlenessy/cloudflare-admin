@@ -1,125 +1,172 @@
 <template>
-    <v-dialog v-model="updaterStatus" max-width="350px" scroll-strategy="block" 
-        :persistent="status=='updating'">
-
+    <v-dialog
+        v-model="updaterStatus"
+        max-width="350px"
+        scroll-strategy="block"
+        :persistent="status == 'updating'"
+    >
         <div>
             <v-card :title="states[status].title" class="pa-2" max-width="450">
-
                 <template v-slot:append>
-                    <v-tooltip location="bottom center" :text="states[status].tooltip">
+                    <v-tooltip
+                        location="bottom center"
+                        :text="states[status].tooltip"
+                    >
                         <template v-slot:activator="{ props }">
-    
-                            <v-btn v-if="status != 'updating'" v-bind="props" color="orange-darken-2"
-                                density="comfortable" variant="text" :icon="states[status].icon"
-                                :loading="states[status].loading" @click="states[status].onClick()" />
+                            <v-btn
+                                v-if="status != 'updating'"
+                                v-bind="props"
+                                color="orange-darken-2"
+                                density="comfortable"
+                                variant="text"
+                                :icon="states[status].icon"
+                                :loading="states[status].loading"
+                                @click="states[status].onClick()"
+                            />
 
-                            <v-progress-circular v-if="status == 'updating'" color="orange-darken-2" 
-                                :model-value="progress">
+                            <v-progress-circular
+                                v-if="status == 'updating'"
+                                color="orange-darken-2"
+                                :model-value="progress"
+                            >
                             </v-progress-circular>
-
                         </template>
                     </v-tooltip>
                 </template>
 
-
                 <v-card-text v-if="status == 'available'" density="compact">
-
                     <div class="text-caption">Version: {{ version }}</div>
-                    <div class="text-caption">Release date: {{ releaseDate }}</div>
+                    <div class="text-caption">
+                        Release date: {{ releaseDate }}
+                    </div>
                     <div class="text-overline mt-2">Release notes</div>
                     <div class="text-caption">
-                        <ul v-for="note in releaseNotes" :key="note" class="pl-4">
+                        <ul
+                            v-for="note in releaseNotes"
+                            :key="note"
+                            class="pl-4"
+                        >
                             <li>{{ note }}</li>
                         </ul>
                     </div>
-
                 </v-card-text>
             </v-card>
         </div>
     </v-dialog>
-
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-import { useUpdater } from '../composables/useUpdater.js';
+import { ref, watch } from "vue";
+import { useUpdater } from "../composables/useUpdater.js";
 
-const { checkForUpdates, downloadAndInstall, downloaded, contentLength } = useUpdater();
+const {
+    checkForUpdates,
+    downloadAndInstall,
+    downloaded,
+    contentLength,
+    relaunchApp,
+} = useUpdater();
 
 const updaterStatus = defineModel({ default: false });
 
-const text = ref('');
-const releaseDate = ref('');
-const version = ref('');
+const text = ref("");
+const releaseDate = ref("");
+const version = ref("");
 const releaseNotes = ref([]);
-const status = ref('');
+const status = ref("");
 let newUpdate = null;
 
 // Updater dialog properties for updater statuses
 const states = ref({
-    'checking': {
-        title: 'Checking for updates',
-        icon: 'mdi-download',
+    checking: {
+        title: "Checking for updates",
+        icon: "mdi-download",
         loading: true,
-        tooltip: 'Cancel',
-        onClick: () => { updaterStatus.value = false }
+        tooltip: "Cancel",
+        onClick: () => {
+            updaterStatus.value = false;
+        },
     },
-    'available': {
-        title: 'Update available',
-        icon: 'mdi-download',
+    available: {
+        title: "Update available",
+        icon: "mdi-download",
         loading: false,
-        tooltip: 'Download and install',
-        onClick: () => { status.value = 'updating'; downloadAndInstall(newUpdate) }
+        tooltip: "Download and install",
+        onClick: () => {
+            status.value = "updating";
+            downloadAndInstall(newUpdate);
+        },
     },
-    'notAvailable': {
-        title: 'No updates available',
-        icon: 'mdi-close',
+    notAvailable: {
+        title: "No updates available",
+        icon: "mdi-close",
         loading: false,
-        tooltip: 'Close',
-        onClick: () => { updaterStatus.value = false }
+        tooltip: "Close",
+        onClick: () => {
+            updaterStatus.value = false;
+        },
     },
-    'failed': {
-        title: 'Update failed',
-        icon: 'mdi-alert',
+    failed: {
+        title: "Update failed",
+        icon: "mdi-alert",
         loading: false,
-        tooltip: 'Close',
-        onClick: () => { updaterStatus.value = false }
+        tooltip: "Close",
+        onClick: () => {
+            updaterStatus.value = false;
+        },
     },
-    'updating': {
-        title: 'Updating',
-        icon: '',
+    updating: {
+        title: "Downloading and installing update",
+        icon: "",
         loading: false,
-        tooltip: 'Installing update',
-        onClick: () => {  }
-    }
+        tooltip: "Installing update",
+        onClick: () => {},
+    },
+    finished: {
+        title: "Installed and ready to relaunch",
+        icon: "mdi-restart",
+        loading: false,
+        tooltip: "Relaunch application",
+        onClick: () => {
+            relaunchApp();
+        },
+    },
 });
 
 const progress = ref(0);
 
-watch(downloaded, () => { progress.value = Math.round((downloaded.value / contentLength.value) * 100); });
-
-watch(updaterStatus, async () => {
-    if (updaterStatus.value) {
-        status.value = 'checking';
-        checkForUpdates().then(update => {
-            if (update) {
-                status.value = 'available';
-                newUpdate = update;
-                text.value = update.body;
-
-                releaseDate.value = update.date.split(' ')[0];
-                version.value = update.version;
-                releaseNotes.value = update.body.split('- ');
-                // trim whitespaces in releasenotes and remove empty strings
-                releaseNotes.value = releaseNotes.value.map(note => note.trim()).filter(note => note);
-            } else {
-                status.value = 'notAvailable';
-            }
-        }).catch((error) => {
-            status.value = 'failed';
-            console.log('Error checking for updates:', error);
-        });
+watch(downloaded, () => {
+    progress.value = Math.round((downloaded.value / contentLength.value) * 100);
+    if (progress.value == 100) {
+        status.value = "finished";
     }
 });
 
+watch(updaterStatus, async () => {
+    if (updaterStatus.value) {
+        status.value = "checking";
+        checkForUpdates()
+            .then((update) => {
+                if (update) {
+                    status.value = "available";
+                    newUpdate = update;
+                    text.value = update.body;
+
+                    releaseDate.value = update.date.split(" ")[0];
+                    version.value = update.version;
+                    releaseNotes.value = update.body.split("- ");
+                    // trim whitespaces in releasenotes and remove empty strings
+                    releaseNotes.value = releaseNotes.value
+                        .map((note) => note.trim())
+                        .filter((note) => note);
+                } else {
+                    status.value = "notAvailable";
+                }
+            })
+            .catch((error) => {
+                status.value = "failed";
+                console.log("Error checking for updates:", error);
+            });
+    }
+});
 </script>

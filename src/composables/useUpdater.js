@@ -1,6 +1,6 @@
-import { check } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-import { ref } from 'vue';
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+import { ref } from "vue";
 
 export function useUpdater() {
     const updateInfo = ref(null);
@@ -8,46 +8,58 @@ export function useUpdater() {
     const contentLength = ref(0);
 
     const checkForUpdates = async () => {
-        console.log('checking for updates');
+        console.log("[updater] - checking for updates");
         const update = await check();
         if (update) {
             updateInfo.value = update;
-            console.log(`found update ${update.version} from ${update.date} with following release notes \n${update.body}`);
+            console.log(
+                `[updater] - found update ${update.version} from ${update.date} with following release notes \n${update.body}`,
+            );
         } else {
-            console.log('no updates found');
+            console.log("[updater] - no updates found");
         }
 
         return update;
-    }
+    };
 
     const downloadAndInstall = async (update) => {
         if (update) {
             await update.downloadAndInstall((event) => {
                 switch (event.event) {
-                    case 'Started':
+                    case "Started":
                         contentLength.value = event.data.contentLength;
-                        console.log(`started downloading ${event.data.contentLength} bytes`);
+                        console.log(
+                            `[updater] - started downloading ${event.data.contentLength} bytes`,
+                        );
                         break;
-                    case 'Progress':
+                    case "Progress":
                         downloaded.value += event.data.chunkLength;
-                        console.log(`downloaded ${downloaded.value} from ${contentLength.value}`);
+                        console.log(
+                            `downloaded ${downloaded.value} from ${contentLength.value}`,
+                        );
                         break;
-                    case 'Finished':
-                        console.log('download finished');
+                    case "Finished":
+                        console.log("[updater] - download finished");
                         break;
                 }
             });
 
-            console.log('update installed');
-            //await relaunch();
+            console.log("[updater] - update installed");
         }
-    }
+    };
+
+    const relaunchApp = async () => {
+        console.log("[updater] - relaunching application");
+        await relaunch();
+    };
 
     return {
         updateInfo,
+        downloaded,
+        contentLength,
+
         checkForUpdates,
         downloadAndInstall,
-        downloaded,
-        contentLength
+        relaunchApp,
     };
 }
