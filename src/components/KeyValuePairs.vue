@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref, watch } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 import { fetch } from "@tauri-apps/plugin-http";
 import { storeToRefs } from "pinia";
 import { useSettingsStore } from "../stores/settings-store.js";
@@ -80,6 +80,53 @@ const listAllKeys = async () => {
     }
 
     return { keys: allKeys, apiCalls: apiCallCount, cursor: cursor };
+};
+
+const keyQueue = ref([]);
+const fetchKeyValue = async (key) => {
+    try {
+        const value = await cfReadKeyValuePair(
+            cfApiKey.value,
+            cfAccountId.value,
+            cfNamespaceId.value,
+            key.name,
+        );
+        // cfKeyValuePairs.value = cfKeyValuePairs.value.concat({
+        //     key: key.name,
+        //     ...value,
+        // });
+
+        kvImportProgress.value++;
+        console.log(`processed key ${key.name}`);
+    } catch (error) {
+        console.error(`Error fetching value for key: ${key}`, error);
+    }
+};
+const processKeyQueue = () => {
+    if (keyQueue.value.length > 0) {
+        const key = keyQueue.value.shift();
+        fetchKeyValue(key);
+    } else {
+        console.log("Key queue empty.");
+        handleProcessingQueue();
+    }
+};
+
+let intervalId = null;
+const handleProcessingQueue = async () => {
+    if (intervalId) {
+        console.log("Stopping processing queue.");
+        clearInterval(intervalId);
+        intervalId = null;
+    } else {
+        if (keyQueue.value.length == 0) {
+            const { keys } = await listAllKeys();
+            keyQueue.value = [...keys];
+            kvImportProgress.value = 0;
+        }
+        console.log("Starting key-queue processing");
+        intervalId = setInterval(processKeyQueue, 500);
+    }
 };
 
 const loading = ref(false);
@@ -269,6 +316,9 @@ const fetchAllKeyValuePairs = async () => {
 };
 
 onMounted(async () => await loadNamespaceOptions());
+onUnmounted(() => {
+    clearInterval(intervalId);
+});
 watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => await refreshKeyValuePairs());
 </script>
@@ -301,27 +351,11 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                 density="compact"
             >
             </v-text-field>
-
-            <v-progress-linear
-                v-model="kvImportProgress"
-                color="amber"
-                height="25"
-            >
-                <template v-slot:default="{ value }">
-                    <div class="text-subtitle-1 text-center">
-                        {{ Math.ceil(value) }}%
-                    </div>
-                </template>
-            </v-progress-linear>
-            <div>
-                {{ kvImportError }}
-                {{ kvImportMessage }}
-            </div>
         </v-card-title>
 
         <v-divider />
 
-        <v-data-table
+        <v-data-table-virtual
             width="100%"
             :headers="kvHeaders"
             :items="cfKeyValuePairs"
@@ -329,9 +363,9 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
             :loading="loading"
             density="compact"
             fixed-header
-            height="90vh"
+            fixed-footer
+            height="90vh-100px"
             :search="search"
-            hide-default-footer
             items-per-page="-1"
         >
             <template v-slot:no-data>
@@ -343,6 +377,34 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                     @click="fetchAllKeyValuePairs()"
                 />
             </template>
-        </v-data-table>
+
+            <template v-slot:bottom>
+                <div class="text-center pt-2">
+                    <v-progress-linear
+                        v-model="kvImportProgress"
+                        color="amber"
+                        height="25"
+                    >
+                        <template v-slot:default="{ value }">
+                            <div class="text-subtitle-1 text-center">
+                                {{ Math.ceil(value) }}%
+                            </div>
+                        </template>
+                    </v-progress-linear>
+                    <div>
+                        <v-btn
+                            color="orange-darken-2"
+                            prepend-icon="mdi-cloud-sync"
+                            text="Import KV pairs"
+                            :disabled="isValidApiKey == false"
+                            @click.stop="handleProcessingQueue()"
+                        />
+
+                        {{ kvImportError }}
+                        {{ kvImportMessage }}
+                    </div>
+                </div>
+            </template>
+        </v-data-table-virtual>
     </v-card>
 </template>
