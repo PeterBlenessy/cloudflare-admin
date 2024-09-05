@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import KeyValuePairs from "./components/KeyValuePairs.vue";
 import Settings from "./components/Settings.vue";
 import Updater from "./components/Updater.vue";
-import { cfVerifyApiKey } from "./api/cloudflare.js";
+import cfClient from "./api/cloudflare.js";
 import { storeToRefs } from "pinia";
 import { useSettingsStore } from "./stores/settings-store.js";
 import { useTheme } from "vuetify";
@@ -20,7 +20,10 @@ const {
 } = useUpdater();
 
 const settingsStore = useSettingsStore();
-const { cfApiKey, darkMode, isValidApiKey } = storeToRefs(settingsStore);
+const { cfAccountId, cfApiKey, darkMode, isValidApiKey } =
+    storeToRefs(settingsStore);
+
+const cf = cfClient(cfApiKey.value, cfAccountId.value);
 
 const theme = useTheme();
 
@@ -41,7 +44,7 @@ onMounted(() => {
     theme.global.name.value = darkMode.value ? "dark" : "light";
 });
 onMounted(async () => {
-    isValidApiKey.value = await cfVerifyApiKey(cfApiKey.value);
+    isValidApiKey.value = await cf.verifyApiKey();
 });
 onMounted(() => {
     checkForUpdates().then((update) => {
@@ -53,7 +56,7 @@ onMounted(() => {
     });
 });
 watch(cfApiKey, async () => {
-    isValidApiKey.value = await cfVerifyApiKey(cfApiKey.value);
+    isValidApiKey.value = await cf.verifyApiKey();
 });
 watch(darkMode, () => {
     theme.global.name.value = darkMode.value ? "dark" : "light";

@@ -1,13 +1,9 @@
 <script setup>
-import { onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { fetch } from "@tauri-apps/plugin-http";
 import { storeToRefs } from "pinia";
 import { useSettingsStore } from "../stores/settings-store.js";
-import {
-    cfListNamespaces,
-    cfListKeys,
-    cfReadKeyValuePair,
-} from "../api/cloudflare.js";
+import cfClient from "../api/cloudflare.js";
 
 const settingsStore = useSettingsStore();
 const {
@@ -20,39 +16,10 @@ const {
     cfKeysCursor,
 } = storeToRefs(settingsStore);
 
-const baseUrl = "https://api.cloudflare.com/client/v4";
+const cf = cfClient(cfApiKey.value, cfAccountId.value);
 
-const urlListNamespaceKeys =
-    baseUrl +
-    `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/keys`;
-const urlReadKeyValuePair =
-    baseUrl +
-    `/accounts/${cfAccountId.value}/storage/kv/namespaces/${cfNamespaceId.value}/values/`;
-
-//const url = baseUrl + `/accounts/${cfAccountId.value}/storage/kv/namespaces/${NAMESPACE_ID}/values/${key_name}`;
-const options = {
-    method: "GET",
-    headers: {
-        Authorization: `Bearer ${cfApiKey.value}`,
-        "Content-Type": "application/json",
-    },
-};
-
-// Lists namespace keys
-const listKeys = async (limit = 1000, cursor) => {
-    let url = urlListNamespaceKeys + `?limit=${limit}`;
-    if (cursor) url += `&cursor=${cursor}`;
-
-    const response = await fetch(url, options);
-    if (!response.ok) {
-        throw new Error(`Fetch keys error! status: ${response.status}`);
-    }
-    const data = await response.json();
-    return { keys: data.result, info: data.result_info };
-};
-
-// Fetch all key-value pairs from stored cursor
-const listAllKeys = async () => {
+// Fetch all keys from stored cursor
+const fetchAllKeys = async () => {
     let allKeys = [];
     let limit = 1000;
     let cursor = cfKeysCursor.value || null;
@@ -61,7 +28,11 @@ const listAllKeys = async () => {
 
     try {
         while (fetchMore) {
-            const { keys, info } = await listKeys(limit, cursor);
+            const { keys, info } = await cf.listKeys(
+                cfNamespaceId.value,
+                limit,
+                cursor,
+            );
 
             apiCallCount++;
             allKeys = allKeys.concat(keys);
@@ -82,66 +53,55 @@ const listAllKeys = async () => {
     return { keys: allKeys, apiCalls: apiCallCount, cursor: cursor };
 };
 
-const keyQueue = ref([]);
 const fetchKeyValue = async (key) => {
     try {
-        const value = await cfReadKeyValuePair(
-            cfApiKey.value,
-            cfAccountId.value,
-            cfNamespaceId.value,
-            key.name,
-        );
-        // cfKeyValuePairs.value = cfKeyValuePairs.value.concat({
-        //     key: key.name,
-        //     ...value,
-        // });
+        const value = await cf.readKeyValuePair(cfNamespaceId.value, key.name);
+        cfKeyValuePairs.value = cfKeyValuePairs.value.concat({
+            key: key.name,
+            ...value,
+        });
 
-        kvImportProgress.value++;
-        console.log(`processed key ${key.name}`);
+        keysProcessed.value++;
     } catch (error) {
-        console.error(`Error fetching value for key: ${key}`, error);
-    }
-};
-const processKeyQueue = () => {
-    if (keyQueue.value.length > 0) {
-        const key = keyQueue.value.shift();
-        fetchKeyValue(key);
-    } else {
-        console.log("Key queue empty.");
-        handleProcessingQueue();
+        console.error(`Error fetching value for key: ${key.name}`, error);
+        console.error(
+            `Processed keys: ${keysProcessed.value} (${keysToProcess.value})`,
+        );
     }
 };
 
-let intervalId = null;
-const handleProcessingQueue = async () => {
-    if (intervalId) {
-        console.log("Stopping processing queue.");
-        clearInterval(intervalId);
-        intervalId = null;
-    } else {
-        if (keyQueue.value.length == 0) {
-            const { keys } = await listAllKeys();
-            keyQueue.value = [...keys];
-            kvImportProgress.value = 0;
+let keyQueue = [];
+let keyQueueTimer = null;
+const rateInterval = 250; // 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
+
+const keysToProcess = ref(0);
+const keysProcessed = ref(0);
+const importProgress = computed(() =>
+    keysToProcess.value == 0
+        ? 0
+        : (keysProcessed.value / keysToProcess.value) * 100,
+);
+const importMessage = ref("");
+
+// Processes 'limit' keys from the key-queue, default is one key
+const processKeyQueue = async (limit = 1) => {
+    if (keyQueue.length > 0) {
+        for (let i = 0; i < Math.min(limit, keyQueue.length); i++) {
+            const key = keyQueue.pop();
+            await fetchKeyValue(key);
         }
-        console.log("Starting key-queue processing");
-        intervalId = setInterval(processKeyQueue, 500);
+    } else {
+        console.log("Key-queue: empty.");
+        stopKeyQueueProcessing();
     }
 };
 
-const loading = ref(false);
-
-const refreshKeyValuePairs = async () => {
-    try {
-        let apiCallCount = 0;
-        let kvPairs = [];
-        let lastKeys = [];
-
-        loading.value = true;
-
-        // Get all keys
-        const { keys, apiCalls } = await listAllKeys();
-        apiCallCount += apiCalls;
+const startKeyQueueProcessing = async () => {
+    console.log("Key-queue: START");
+    console.log(`Key-queue length:, ${keyQueue.length}`);
+    if (keyQueue.length == 0) {
+        console.log("Key-queue: fetching new keys");
+        const { keys } = await fetchAllKeys();
 
         // Filter out new keys
         const newKeys = keys.filter(
@@ -151,40 +111,36 @@ const refreshKeyValuePairs = async () => {
 
         console.log(`Fetched ${keys.length} keys. New keys: ${newKeys.length}`);
 
-        // Store new keys in local storage
-        cfNamespaceKeys.value = [...cfNamespaceKeys.value, ...newKeys];
+        // Initiate key queue
+        keyQueue = [...keys];
+        keysToProcess.value = keyQueue.length;
+        keysProcessed.value = 0;
 
-        // Get values for the 100 most recent keys
-        const kvCount = 100;
-        lastKeys = keys.slice(-kvCount);
+        // Fetch the latest 100 keys first
+        console.log("Key-queue: processing first 100 keys");
+        await processKeyQueue(100);
+    }
+    console.log("Key-queue: processing keys");
+    console.log(`Key-queue: processing ${keyQueue.length} keys`);
+    keyQueueTimer = setInterval(processKeyQueue, rateInterval);
+};
 
-        // Fetch values for the new keys
-        const promises = lastKeys.map(async (key) => {
-            const response = await fetch(
-                urlReadKeyValuePair + key.name,
-                options,
-            );
-            if (!response.ok) {
-                throw new Error(
-                    `Fetch key:value error! status: ${JSON.stringify(response)}`,
-                );
-            }
-            const data = await response.json();
-            apiCallCount++;
+const stopKeyQueueProcessing = () => {
+    console.log("Key-queue: STOP");
+    clearInterval(keyQueueTimer);
+    keyQueueTimer = null;
+};
 
-            kvPairs.push({ key: key.name, ...data });
-        });
-
-        // Wait for all of the above promises to resolve, and then store the new key-value pairs.
-        // We do not want to include it in the loop above for performance reasons.
-        await Promise.all(promises);
-        cfKeyValuePairs.value = [...kvPairs];
-    } catch (error) {
-        console.error("Error fetching data:", error);
-    } finally {
-        loading.value = false;
+// Start or stop key-queue processing
+const handleKeyQueueProcessing = () => {
+    if (keyQueueTimer) {
+        stopKeyQueueProcessing();
+    } else {
+        startKeyQueueProcessing();
     }
 };
+
+const loading = ref(false);
 
 // { key, timestamp, type, text, data }
 const kvHeaders = ref([
@@ -203,7 +159,7 @@ const loadNamespaceOptions = async () => {
     if (isValidApiKey.value == false) return;
 
     loadingNamespaces.value = true;
-    let result = await cfListNamespaces(cfApiKey.value, cfAccountId.value);
+    let result = await cf.listNamespaces();
 
     namespaceOptions.value = result.map((item) => ({
         title: item.title,
@@ -212,115 +168,12 @@ const loadNamespaceOptions = async () => {
     loadingNamespaces.value = false;
 };
 
-const kvImportProgress = ref(0);
-const kvImportStatus = ref("");
-const kvImportMessage = ref("");
-const kvImportError = ref(null);
-
-const fetchAllKeyValuePairs = async () => {
-    kvImportError.value = null;
-    kvImportMessage.value = "Starting fetch...";
-
-    const limit = 1000;
-    const apiCallLimit = 1000;
-    let cursor = null;
-    let allKeyValuePairs = [];
-    let totalFetched = 0;
-    let allKeys = [];
-    let apiCallCount = 0;
-
-    // Function to wait for a specified time
-    const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    kvImportStatus.value = "fetching";
-    kvImportMessage.value = `Fetching all key-value pairs...`;
-
-    try {
-        const { keys, apiCalls } = await listAllKeys();
-        apiCallCount += apiCalls;
-
-        // Filter out new keys
-        const newKeys = keys.filter(
-            (key) =>
-                !cfNamespaceKeys.value.some((item) => item.name === key.name),
-        );
-
-        console.log(`Fetched ${keys.length} keys. New keys: ${newKeys.length}`);
-
-        // Store new keys in local storage
-        cfNamespaceKeys.value = [...cfNamespaceKeys.value, ...newKeys];
-
-        // Check if need to wait
-        if (apiCallCount >= apiCallLimit) {
-            kvImportStatus.value = "waiting";
-            kvImportMessage.value =
-                "API call limit reached. Waiting for 5 minutes before continuing.";
-
-            await wait(5 * 60 * 1000);
-            apiCallCount = 0;
-        }
-
-        let batchSize = Math.min(
-            apiCallLimit - apiCallCount,
-            keys.length - allKeyValuePairs.length,
-        );
-        console.log(`Set batch size to ${batchSize}`);
-
-        // Fetch values for each key in batches
-        for (let i = 0; i < keys.length; i += batchSize) {
-            const batch = keys.slice(i, i + batchSize);
-
-            kvImportStatus.value = "fetching";
-            kvImportMessage.value = `Fetching values for keys ${i + 1} to ${i + batch.length}`;
-
-            const fetchPromises = batch.map(async (key) => {
-                apiCallCount++;
-                const value = await cfReadKeyValuePair(
-                    cfApiKey.value,
-                    cfAccountId.value,
-                    cfNamespaceId.value,
-                    key.name,
-                );
-                return { key: key.name, ...value };
-            });
-
-            const keyValuePairs = await Promise.all(fetchPromises);
-            allKeyValuePairs = allKeyValuePairs.concat(keyValuePairs);
-
-            cfKeyValuePairs.value = cfKeyValuePairs.value.concat(keyValuePairs);
-
-            totalFetched += allKeyValuePairs.length;
-
-            kvImportStatus.value = "progress";
-            kvImportProgress.value = Math.round(
-                (totalFetched / keys.length) * 100,
-            );
-
-            if (apiCallCount >= apiCallLimit) {
-                kvImportStatus.value = "waiting";
-                kvImportMessage.value =
-                    "API call limit reached. Waiting for 5 minutes before continuing.";
-
-                console.log(
-                    "API call limit reached. Waiting for 5 minutes before continuing.",
-                );
-                await wait(5 * 60 * 1000);
-                apiCallCount = 0;
-            }
-        }
-        kvImportStatus.value = "completed";
-    } catch (error) {
-        console.error("Error fetching data:", error);
-    }
-    // keyValuePairs.value = allKeyValuePairs;
-};
-
 onMounted(async () => await loadNamespaceOptions());
-onUnmounted(() => {
-    clearInterval(intervalId);
-});
+
 watch(isValidApiKey, async () => await loadNamespaceOptions());
-watch(cfNamespaceId, async () => await refreshKeyValuePairs());
+watch(cfNamespaceId, async () => handleKeyQueueProcessing());
+
+onUnmounted(() => clearInterval(keyQueueTimer));
 </script>
 
 <template>
@@ -335,7 +188,7 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                 append-icon="mdi-cloud-sync"
                 variant="outlined"
                 density="compact"
-                @click:append="refreshKeyValuePairs()"
+                @click:append="handleKeyQueueProcessing()"
                 :disabled="isValidApiKey == false"
                 :loading="loadingNamespaces"
             >
@@ -364,7 +217,7 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
             density="compact"
             fixed-header
             fixed-footer
-            height="calc(100vh - 250px)"
+            height="calc(100vh - 200px)"
             :search="search"
             items-per-page="-1"
         >
@@ -374,35 +227,25 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
                     prepend-icon="mdi-cloud-sync"
                     text="Fetch KV pairs"
                     :disabled="isValidApiKey == false"
-                    @click="fetchAllKeyValuePairs()"
+                    @click.stop="handleKeyQueueProcessing()"
                 />
             </template>
 
             <template v-slot:bottom>
-                <div class="text-center pt-2">
+                <div class="text-center pa-2">
                     <v-progress-linear
-                        v-model="kvImportProgress"
-                        color="amber"
-                        height="25"
+                        v-if="importProgress > 0 && importProgress < 100"
+                        v-model="importProgress"
+                        color="orange-darken-2"
+                        height="20"
+                        rounded="0"
                     >
                         <template v-slot:default="{ value }">
-                            <div class="text-subtitle-1 text-center">
+                            <div class="text-subtitle-2 text-center">
                                 {{ Math.ceil(value) }}%
                             </div>
                         </template>
                     </v-progress-linear>
-                    <div>
-                        <v-btn
-                            color="orange-darken-2"
-                            prepend-icon="mdi-cloud-sync"
-                            text="Import KV pairs"
-                            :disabled="isValidApiKey == false"
-                            @click.stop="handleProcessingQueue()"
-                        />
-
-                        {{ kvImportError }}
-                        {{ kvImportMessage }}
-                    </div>
                 </div>
             </template>
         </v-data-table-virtual>

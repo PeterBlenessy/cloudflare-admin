@@ -27,7 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+
+## v0.1.13 - 2024-09-05
 - Started batched download of all key-value pairs.
+- Fixed issue where key-value pair table didn't resize properly with window and table header scrolled below application toolbar.
+- Refactored cloudflare.js to only pass apiKey and accountId once.
+- Refactored KeyValuePairs.vue to use cloudflare.js, and implemented queue based key-value fetching.
 
 ## v0.1.12 - 2024-09-03
 - Added progress indication when updating from toolbar, i.e. without a dialog.
