@@ -364,7 +364,7 @@ watch(cfNamespaceId, async () => await refreshKeyValuePairs());
             density="compact"
             fixed-header
             fixed-footer
-            height="90vh-100px"
+            height="calc(100vh - 250px)"
             :search="search"
             items-per-page="-1"
         >
