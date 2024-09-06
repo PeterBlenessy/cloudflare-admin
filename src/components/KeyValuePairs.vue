@@ -24,7 +24,6 @@ const fetchAllKeys = async () => {
     let limit = 1000;
     let cursor = cfKeysCursor.value || null;
     let fetchMore = true;
-    let apiCallCount = 0;
 
     try {
         while (fetchMore) {
@@ -34,45 +33,48 @@ const fetchAllKeys = async () => {
                 cursor,
             );
 
-            apiCallCount++;
             allKeys = allKeys.concat(keys);
             cursor = info.cursor;
 
             console.log(
-                `API calls: ${apiCallCount}. Fetched ${keys.length} keys. Total keys fetched: ${allKeys.length}`,
+                `[fetchAllKeys] - Fetched ${keys.length} keys. Total: ${allKeys.length}`,
             );
 
-            // Save cursor so we don't fetch all keys again
+            // Save cursor so we don't fetch all keys again next time
             if (cursor) cfKeysCursor.value = cursor;
             if (!cursor || info.count < limit) fetchMore = false;
         }
     } catch (error) {
-        console.error("Error fetching keys:", error);
+        console.error("[fetchAllKeys] - Error fetching keys:", error);
     }
 
-    return { keys: allKeys, apiCalls: apiCallCount, cursor: cursor };
+    return { keys: allKeys, cursor: cursor };
 };
 
 const fetchKeyValue = async (key) => {
     try {
         const value = await cf.readKeyValuePair(cfNamespaceId.value, key.name);
-        cfKeyValuePairs.value = cfKeyValuePairs.value.concat({
+        keyValuePairs = keyValuePairs.concat({
             key: key.name,
             ...value,
         });
-
-        keysProcessed.value++;
     } catch (error) {
-        console.error(`Error fetching value for key: ${key.name}`, error);
         console.error(
-            `Processed keys: ${keysProcessed.value} (${keysToProcess.value})`,
+            `[fetchKeyValue] - Error fetching value for key: ${key.name}`,
+            error,
+        );
+        console.error(
+            `[fetchKeyValue] - Fetched ${keysProcessed.value} (${keysToProcess.value}) keys`,
         );
     }
 };
 
+let keyValuePairs = [];
 let keyQueue = [];
 let keyQueueTimer = null;
-const rateInterval = 250; // 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
+
+// 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
+const rateInterval = 300;
 
 const keysToProcess = ref(0);
 const keysProcessed = ref(0);
@@ -81,26 +83,42 @@ const importProgress = computed(() =>
         ? 0
         : (keysProcessed.value / keysToProcess.value) * 100,
 );
-const importMessage = ref("");
 
 // Processes 'limit' keys from the key-queue, default is one key
 const processKeyQueue = async (limit = 1) => {
     if (keyQueue.length > 0) {
-        for (let i = 0; i < Math.min(limit, keyQueue.length); i++) {
-            const key = keyQueue.pop();
-            await fetchKeyValue(key);
+        if (limit > 1) {
+            console.log(`[process] - Processing a batch of ${limit} keys`);
+        }
+
+        let batchSize = Math.min(limit, keyQueue.length);
+
+        // Remove the last batchSize elements from the end of the queue
+        const batch = keyQueue.splice(-batchSize);
+        // Map the batch to fetchFunction calls
+        const promises = batch.map((param) => fetchKeyValue(param));
+        keysProcessed.value += batchSize;
+
+        try {
+            await Promise.all(promises); // Wait for all promises in the current batch to resolve
+            console.log(`[process] - Batch completed`);
+
+            // Store first batch so key-value pair table gets updated
+            if (limit > 1) cfKeyValuePairs.value = keyValuePairs;
+        } catch (error) {
+            console.error("[process] - Error in batch processing", error);
         }
     } else {
-        console.log("Key-queue: empty.");
+        console.log("[process] - Key-queue is empty");
         stopKeyQueueProcessing();
     }
 };
 
 const startKeyQueueProcessing = async () => {
-    console.log("Key-queue: START");
-    console.log(`Key-queue length:, ${keyQueue.length}`);
+    console.log("[start] - Queue processing started");
+    console.log(`[start] - Queue length:, ${keyQueue.length}`);
     if (keyQueue.length == 0) {
-        console.log("Key-queue: fetching new keys");
+        console.log("[start] - Queue empty. Fetching (new) keys");
         const { keys } = await fetchAllKeys();
 
         // Filter out new keys
@@ -109,24 +127,33 @@ const startKeyQueueProcessing = async () => {
                 !cfNamespaceKeys.value.some((item) => item.name === key.name),
         );
 
-        console.log(`Fetched ${keys.length} keys. New keys: ${newKeys.length}`);
+        console.log(
+            `[start] - Fetched ${keys.length} keys. New keys: ${newKeys.length}`,
+        );
 
+        if (newKeys.length == 0) {
+            console.log("[start] - No new keys to process. Exiting.");
+            return;
+        }
         // Initiate key queue
-        keyQueue = [...keys];
+        keyQueue = [...newKeys];
+        // Store new keys
+        cfNamespaceKeys.value = cfNamespaceKeys.value.concat(newKeys);
         keysToProcess.value = keyQueue.length;
         keysProcessed.value = 0;
 
         // Fetch the latest 100 keys first
-        console.log("Key-queue: processing first 100 keys");
+        console.log("[start] - Processing first 100 keys");
         await processKeyQueue(100);
     }
-    console.log("Key-queue: processing keys");
-    console.log(`Key-queue: processing ${keyQueue.length} keys`);
+    console.log("[start] - Processing keys");
+    console.log(`[start] - Processing ${keyQueue.length} keys`);
     keyQueueTimer = setInterval(processKeyQueue, rateInterval);
 };
 
 const stopKeyQueueProcessing = () => {
-    console.log("Key-queue: STOP");
+    console.log("[stop] - Key-queue processing stopped");
+    console.log(`[stop] - Keys left in queue: ${keyQueue.length}`);
     clearInterval(keyQueueTimer);
     keyQueueTimer = null;
 };
@@ -241,8 +268,8 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                         rounded="0"
                     >
                         <template v-slot:default="{ value }">
-                            <div class="text-subtitle-2 text-center">
-                                {{ Math.ceil(value) }}%
+                            <div class="text-overline text-center">
+                                {{ keysProcessed }} ({{ keysToProcess }})
                             </div>
                         </template>
                     </v-progress-linear>

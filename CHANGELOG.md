@@ -28,6 +28,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.14 - 2024-09-06
+- Finished queue and timer based key-value pair import.
+- Fixed issue with batch processing where queue length was not decremented.
+- Added more info to console logs.
+- Limitation: Due to limited storage in localStorage not all logs are stored. Need to migrate to IndexedDB.
+
 ## v0.1.13 - 2024-09-05
 - Started batched download of all key-value pairs.
 - Fixed issue where key-value pair table didn't resize properly with window and table header scrolled below application toolbar.
