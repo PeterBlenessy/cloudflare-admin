@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+- Added support for clearing local KV storage.
 
 ## v0.1.14 - 2024-09-06
 - Finished queue and timer based key-value pair import.

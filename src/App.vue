@@ -1,7 +1,7 @@
 <script setup>
 // This starter template is using Vue 3 <script setup> SFCs
 // Check out https://vuejs.org/api/sfc-script-setup.html#script-setup
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, mergeProps, onMounted, ref, watch } from "vue";
 import KeyValuePairs from "./components/KeyValuePairs.vue";
 import Settings from "./components/Settings.vue";
 import Updater from "./components/Updater.vue";
@@ -79,12 +79,17 @@ const handleClickUpdateButton = () => {
         updaterStatus.value = true;
     }
 };
+
+const handleClearLocalKVStorage = () => {
+    settingsStore.resetLocalKVStorage();
+};
 </script>
 
 <template>
     <v-layout class="rounded rounded-md">
         <v-app-bar title="Cloudflare admin">
             <template v-slot:append>
+                <!-- Cloudflare API settings button -->
                 <v-tooltip
                     location="bottom center"
                     text="Cloudflare API settings"
@@ -103,6 +108,7 @@ const handleClickUpdateButton = () => {
                     </template>
                 </v-tooltip>
 
+                <!-- Toggle dark mode button -->
                 <v-tooltip location="bottom center" text="Toggle dark mode">
                     <template v-slot:activator="{ props }">
                         <v-btn
@@ -113,6 +119,7 @@ const handleClickUpdateButton = () => {
                     </template>
                 </v-tooltip>
 
+                <!-- Updater button -->
                 <v-tooltip location="bottom center" :text="updaterTooltip">
                     <template v-slot:activator="{ props }">
                         <v-btn
@@ -137,6 +144,30 @@ const handleClickUpdateButton = () => {
                         </v-progress-circular>
                     </template>
                 </v-tooltip>
+
+                <!-- Menu button -->
+                <v-menu>
+                    <template v-slot:activator="{ props: menu }">
+                        <v-tooltip location="bottom center" text="Menu">
+                            <template v-slot:activator="{ props: tooltip }">
+                                <v-btn
+                                    icon="mdi-dots-vertical"
+                                    v-bind="mergeProps(menu, tooltip)"
+                                />
+                            </template>
+                        </v-tooltip>
+                    </template>
+                    <v-list>
+                        <v-list-item
+                            @click="handleClearLocalKVStorage()"
+                            prepend-icon="mdi-database-remove"
+                        >
+                            <v-list-item-title>
+                                Clear local KV storage
+                            </v-list-item-title>
+                        </v-list-item>
+                    </v-list>
+                </v-menu>
             </template>
         </v-app-bar>
         <v-main

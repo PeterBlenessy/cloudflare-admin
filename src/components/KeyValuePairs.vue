@@ -244,7 +244,7 @@ onUnmounted(() => clearInterval(keyQueueTimer));
             density="compact"
             fixed-header
             fixed-footer
-            height="calc(100vh - 200px)"
+            height="calc(100vh - 195px)"
             :search="search"
             items-per-page="-1"
         >
@@ -268,7 +268,7 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                         rounded="0"
                     >
                         <template v-slot:default="{ value }">
-                            <div class="text-overline text-center">
+                            <div class="text-caption text-center">
                                 {{ keysProcessed }} ({{ keysToProcess }})
                             </div>
                         </template>
