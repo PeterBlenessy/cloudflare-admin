@@ -1,9 +1,9 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
-import { fetch } from "@tauri-apps/plugin-http";
 import { storeToRefs } from "pinia";
 import { useSettingsStore } from "../stores/settings-store.js";
 import cfClient from "../api/cloudflare.js";
+import localforage from "localforage";
 
 const settingsStore = useSettingsStore();
 const {
@@ -11,13 +11,62 @@ const {
     cfAccountId,
     cfApiKey,
     cfNamespaceId,
-    cfKeyValuePairs,
     cfNamespaceKeys,
     cfKeysCursor,
 } = storeToRefs(settingsStore);
 
 const cf = cfClient(cfApiKey.value, cfAccountId.value);
 
+const clearDB = defineModel({ default: false });
+
+const keyValuePairs = ref([]);
+//--------------------------------------------------------------------------------
+// Initialize localforage instance (IndexedDB)
+const kvDB = localforage.createInstance({
+    name: "cf-admin",
+    storeName: "kv-pairs",
+});
+
+// Store key-value pairs in IndexedDB
+const storeKeyValuePair = (key, value) => {
+    keyValuePairs.value.push({ key: key.name, ...value });
+    kvDB.setItem(key, value)
+        .then(() => {})
+        .catch((error) => console.error("[kvStore.setItem]", error));
+};
+
+watch(clearDB, () => clearKeyValuePairs());
+const clearKeyValuePairs = () => {
+    kvDB.clear()
+        .then(() => {
+            keyValuePairs.value = [];
+            clearDB.value = false;
+        })
+        .catch((error) => console.error("[kvStore.clear]", error));
+};
+
+const loadingFromDB = ref(false);
+// Load key-value pairs from IndexedDB
+const loadKeyValuePairs = () => {
+    console.time("loadKeyValuePairs()");
+    loadingFromDB.value = true;
+    let data = [];
+    kvDB.iterate((value, key, iterationNumber) => {
+        data.push(value);
+    })
+        .then(() => {
+            keyValuePairs.value = data;
+        })
+        .catch((error) => {
+            throw new Error(error);
+        })
+        .finally(() => {
+            loadingFromDB.value = false;
+            console.timeEnd("loadKeyValuePairs()");
+        });
+};
+
+//--------------------------------------------------------------------------------
 // Fetch all keys from stored cursor
 const fetchAllKeys = async () => {
     let allKeys = [];
@@ -54,13 +103,15 @@ const fetchAllKeys = async () => {
 const fetchKeyValue = async (key) => {
     try {
         const value = await cf.readKeyValuePair(cfNamespaceId.value, key.name);
-        keyValuePairs = keyValuePairs.concat({
+        kvPairs = kvPairs.concat({
             key: key.name,
             ...value,
         });
+        storeKeyValuePair(key.name, value);
+        keysProcessed.value++;
     } catch (error) {
         console.error(
-            `[fetchKeyValue] - Error fetching value for key: ${key.name}`,
+            `[fetchKeyValue] - Error fetching value for key ${key.name} at position ${keysProcessed.value}`,
             error,
         );
         console.error(
@@ -69,15 +120,16 @@ const fetchKeyValue = async (key) => {
     }
 };
 
-let keyValuePairs = [];
+let kvPairs = [];
 let keyQueue = [];
-let keyQueueTimer = null;
+let keyQueueTimer;
 
 // 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
 const rateInterval = 300;
 
 const keysToProcess = ref(0);
 const keysProcessed = ref(0);
+const loadingFromWeb = ref(false);
 const importProgress = computed(() =>
     keysToProcess.value == 0
         ? 0
@@ -89,24 +141,29 @@ const processKeyQueue = async (limit = 1) => {
     if (keyQueue.length > 0) {
         if (limit > 1) {
             console.log(`[process] - Processing a batch of ${limit} keys`);
-        }
 
-        let batchSize = Math.min(limit, keyQueue.length);
+            let batchSize = Math.min(limit, keyQueue.length);
 
-        // Remove the last batchSize elements from the end of the queue
-        const batch = keyQueue.splice(-batchSize);
-        // Map the batch to fetchFunction calls
-        const promises = batch.map((param) => fetchKeyValue(param));
-        keysProcessed.value += batchSize;
+            // Remove the last batchSize elements from the end of the queue
+            const batch = keyQueue.splice(-batchSize);
+            // Map the batch to fetchFunction calls
+            const promises = batch.map((param) => fetchKeyValue(param));
 
-        try {
-            await Promise.all(promises); // Wait for all promises in the current batch to resolve
-            console.log(`[process] - Batch completed`);
+            try {
+                await Promise.all(promises); // Wait for all promises in the current batch to resolve
+                console.log(`[process] - Batch completed`);
 
-            // Store first batch so key-value pair table gets updated
-            if (limit > 1) cfKeyValuePairs.value = keyValuePairs;
-        } catch (error) {
-            console.error("[process] - Error in batch processing", error);
+                // Store first batch so key-value pair table gets updated
+                if (limit > 1) keyValuePairs.value = kvPairs;
+            } catch (error) {
+                console.error("[process] - Error in batch processing", error);
+            }
+        } else {
+            // console.log("[process] - Processing a single key");
+            const key = keyQueue.pop();
+            await fetchKeyValue(key);
+            keysProcessed.value++;
+            // cfKeyValuePairs.value = kvPairs;
         }
     } else {
         console.log("[process] - Key-queue is empty");
@@ -133,6 +190,7 @@ const startKeyQueueProcessing = async () => {
 
         if (newKeys.length == 0) {
             console.log("[start] - No new keys to process. Exiting.");
+            // loadingFromWeb.value = false;
             return;
         }
         // Initiate key queue
@@ -155,19 +213,18 @@ const stopKeyQueueProcessing = () => {
     console.log("[stop] - Key-queue processing stopped");
     console.log(`[stop] - Keys left in queue: ${keyQueue.length}`);
     clearInterval(keyQueueTimer);
-    keyQueueTimer = null;
 };
 
 // Start or stop key-queue processing
 const handleKeyQueueProcessing = () => {
-    if (keyQueueTimer) {
+    if (loadingFromWeb.value || keyQueueTimer) {
         stopKeyQueueProcessing();
+        loadingFromWeb.value = false;
     } else {
-        startKeyQueueProcessing();
+        loadingFromWeb.value = true;
+        startKeyQueueProcessing().then(() => (loadingFromWeb.value = false));
     }
 };
-
-const loading = ref(false);
 
 // { key, timestamp, type, text, data }
 const kvHeaders = ref([
@@ -196,6 +253,7 @@ const loadNamespaceOptions = async () => {
 };
 
 onMounted(async () => await loadNamespaceOptions());
+onMounted(async () => loadKeyValuePairs());
 
 watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => handleKeyQueueProcessing());
@@ -212,15 +270,23 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                 :items="namespaceOptions"
                 label="Select namespace"
                 prepend-inner-icon="mdi-database"
-                append-icon="mdi-cloud-sync"
                 variant="outlined"
                 density="compact"
-                @click:append="handleKeyQueueProcessing()"
                 :disabled="isValidApiKey == false"
                 :loading="loadingNamespaces"
             >
             </v-select>
 
+            <v-btn
+                :icon="
+                    loadingFromWeb ? 'mdi-cloud-cancel' : 'mdi-cloud-refresh'
+                "
+                variant="plain"
+                class="ma-1"
+                :color="loadingFromWeb ? 'orange darken-2' : ''"
+                :loading="loadingFromWeb"
+                @click="handleKeyQueueProcessing()"
+            />
             <v-text-field
                 class="ma-2"
                 v-model="search"
@@ -238,9 +304,9 @@ onUnmounted(() => clearInterval(keyQueueTimer));
         <v-data-table-virtual
             width="100%"
             :headers="kvHeaders"
-            :items="cfKeyValuePairs"
+            :items="keyValuePairs"
             item-value="key"
-            :loading="loading"
+            :loading="loadingFromDB"
             density="compact"
             fixed-header
             fixed-footer

@@ -80,8 +80,10 @@ const handleClickUpdateButton = () => {
     }
 };
 
+const clearDB = ref(false);
 const handleClearLocalKVStorage = () => {
     settingsStore.resetLocalKVStorage();
+    clearDB.value = true;
 };
 </script>
 
@@ -175,7 +177,7 @@ const handleClearLocalKVStorage = () => {
             style="min-height: 300px"
         >
             <!-- Key-value pairs -->
-            <KeyValuePairs />
+            <KeyValuePairs v-model="clearDB" />
         </v-main>
 
         <Settings v-model="showSettingsDialog" />

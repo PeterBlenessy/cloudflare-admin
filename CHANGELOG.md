@@ -27,7 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [IN-PROGRESS]
 
 ## [UNRELEASED]
+
+## v0.1.15 - 2024-09-08
 - Added support for clearing local KV storage.
+- Added support for storing key-value pairs in IndexedDB.
+- Fixed error where import could not be interrupted by clicking the cloud sync button.
+- Updated dependencies.
 
 ## v0.1.14 - 2024-09-06
 - Finished queue and timer based key-value pair import.

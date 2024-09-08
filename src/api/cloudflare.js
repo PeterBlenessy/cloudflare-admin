@@ -36,7 +36,7 @@ const cfClient = (apiKey, accountId) => {
         const response = await fetch(urlListNamespaces, getOptions(apiKey));
         if (!response.ok) {
             throw new Error(
-                `Fetch namespaces error! status: ${response.status}`,
+                `Fetch namespaces error! Response: ${JSON.stringify(response)}`,
             );
         }
         const data = await response.json();
@@ -54,7 +54,9 @@ const cfClient = (apiKey, accountId) => {
 
         const response = await fetch(url, getOptions(apiKey));
         if (!response.ok) {
-            throw new Error(`Fetch keys error! status: ${response.status}`);
+            throw new Error(
+                `Fetch keys error! Response: ${JSON.stringify(response)}`,
+            );
         }
         const data = await response.json();
         return { keys: data.result, info: data.result_info };
@@ -72,7 +74,7 @@ const cfClient = (apiKey, accountId) => {
         );
         if (!response.ok) {
             throw new Error(
-                `Fetch key-value pair error! status: ${response.status}`,
+                `Fetch key-value pair error! Response: ${JSON.stringify(response)}`,
             );
         }
         return await response.json();
