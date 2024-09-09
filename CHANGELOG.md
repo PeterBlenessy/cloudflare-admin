@@ -28,6 +28,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.17 - 2024-09-09
+- Changed Updater progress texts to fit in dialog.
+- Fixed error in calculating items to process and queue length.
+- Fixed error where fetch progress status said paused, when status was in fact done.
+- Added timer to hide the progress indicator after a 60 seconds when done.
+- Added support for fetching logs to survive a restart / reload of app.
+
 ## v0.1.16 - 2024-09-09
 - Fixed issue where updater loading indicator icon was larger than the other icons.
 - Enabled DevTools in production builds. Note: The devtools API is private on macOS. Using private APIs on macOS prevents your application from being accepted to the App Store.

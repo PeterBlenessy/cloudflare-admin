@@ -24,6 +24,11 @@ export const useSettingsStore = defineStore("settings", () => {
 
     const isValidApiKey = ref(loadState("cfApiKey") || false);
 
+    const keyQueue = ref(loadState("keyQueue") || []);
+    const itemsToProcess = ref(loadState("itemsToProcess") || 0);
+    const itemsProcessed = ref(loadState("itemsProcessed") || 0);
+    const importMessage = ref(loadState("importMessage") || "");
+
     // Watch and save changes to local storage
     watch(darkMode, (newValue) => saveState("darkMode", newValue), {
         deep: true,
@@ -54,6 +59,19 @@ export const useSettingsStore = defineStore("settings", () => {
         deep: true,
     });
 
+    watch(keyQueue, (newValue) => saveState("keyQueue", newValue), {
+        deep: true,
+    });
+    watch(itemsToProcess, (newValue) => saveState("itemsToProcess", newValue), {
+        deep: true,
+    });
+    watch(itemsProcessed, (newValue) => saveState("itemsProcessed", newValue), {
+        deep: true,
+    });
+    watch(importMessage, (newValue) => saveState("importMessage", newValue), {
+        deep: true,
+    });
+
     function resetLocalKVStorage() {
         cfNamespaceKeys.value = [];
         cfKeysCursor.value = "";
@@ -69,6 +87,10 @@ export const useSettingsStore = defineStore("settings", () => {
         cfKeysCursor,
         cfKeyValuePairs,
         isValidApiKey,
+        keyQueue,
+        itemsToProcess,
+        itemsProcessed,
+        importMessage,
 
         resetLocalKVStorage,
     };

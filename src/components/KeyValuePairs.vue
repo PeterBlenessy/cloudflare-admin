@@ -13,6 +13,10 @@ const {
     cfNamespaceId,
     cfNamespaceKeys,
     cfKeysCursor,
+    keyQueue,
+    itemsToProcess,
+    itemsProcessed,
+    importMessage,
 } = storeToRefs(settingsStore);
 
 // Model used to pick up button click from parent
@@ -47,8 +51,12 @@ const storeKeyValuePair = (key, value) => {
 // Clear all key-value pairs stored in IndexedDB
 const clearKeyValuePairs = () => {
     stopKeyQueueProcessing();
-    keyQueue = [];
+    keyQueue.value = [];
     keyValuePairs.value = [];
+    itemsProcessed.value = 0;
+    itemsToProcess.value = 0;
+    kvPairs = [];
+
     kvDB.clear()
         .then(() => {
             keyValuePairs.value = [];
@@ -103,7 +111,6 @@ const fetchAllKeys = async () => {
             console.log(
                 `[fetchAllKeys] - Fetched ${keys.length} keys. Total: ${allKeys.length}`,
             );
-            itemsProcessed.value = allKeys.length;
             // Save cursor so we don't fetch all keys again next time
             if (cursor) cfKeysCursor.value = cursor;
             if (!cursor || info.count < limit) fetchMore = false;
@@ -111,7 +118,6 @@ const fetchAllKeys = async () => {
     } catch (error) {
         console.error("[fetchAllKeys] - Error fetching keys:", error);
     }
-
     return { keys: allKeys, cursor: cursor };
 };
 
@@ -138,50 +144,43 @@ const fetchKeyValue = async (key) => {
 //--------------------------------------------------------------------------------
 // Queue Processing
 
-let keyQueue = [];
 let keyQueueTimer;
 
 // 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
 const rateInterval = 300;
 
-const itemsToProcess = ref(0);
-const itemsProcessed = ref(0);
 const loadingFromWeb = ref(false);
 const importProgress = computed(() =>
     itemsToProcess.value == 0
         ? 0
         : (itemsProcessed.value / itemsToProcess.value) * 100,
 );
-const importMessage = ref("");
 
 // Processes 'limit' keys from the key-queue, default is one key
-const processKeyQueue = async (limit = 1) => {
-    if (keyQueue.length > 0) {
-        if (limit > 1) {
-            console.log(`[process] - Processing a batch of ${limit} keys`);
-
-            let batchSize = Math.min(limit, keyQueue.length);
+const processKeyQueue = async (batchSize = 1) => {
+    if (keyQueue.value.length > 0) {
+        if (batchSize > 1) {
+            console.log(`[process] - Processing a batch of ${batchSize} keys`);
 
             // Remove the last batchSize elements from the end of the queue
-            const batch = keyQueue.splice(-batchSize);
+            const batch = keyQueue.value.splice(-batchSize);
             // Map the batch to fetchFunction calls
             const promises = batch.map((param) => fetchKeyValue(param));
 
             try {
-                await Promise.all(promises); // Wait for all promises in the current batch to resolve
-                console.log(`[process] - Batch completed`);
+                // Wait for all promises in the current batch to resolve
+                await Promise.all(promises);
+                console.log(`[process] - Batch of ${batchSize} completed`);
 
                 // Store first batch so key-value pair table gets updated
-                if (limit > 1) keyValuePairs.value = kvPairs;
+                if (batchSize > 1) keyValuePairs.value = kvPairs;
             } catch (error) {
                 console.error("[process] - Error in batch processing", error);
             }
         } else {
             // Process the last element in the array, which is the latest log
-            const key = keyQueue.pop();
+            const key = keyQueue.value.pop();
             await fetchKeyValue(key);
-            itemsProcessed.value++;
-            // cfKeyValuePairs.value = kvPairs;
         }
     } else {
         console.log("[process] - Key-queue is empty");
@@ -191,9 +190,11 @@ const processKeyQueue = async (limit = 1) => {
 
 const startKeyQueueProcessing = async () => {
     console.log("[start] - Queue processing started");
-    console.log(`[start] - Queue length:, ${keyQueue.length}`);
+    console.log(`[start] - Queue length:, ${keyQueue.value.length}`);
     loadingFromWeb.value = true;
-    if (keyQueue.length == 0) {
+
+    // If queue is empty, fetch new keys
+    if (keyQueue.value.length == 0) {
         console.log("[start] - Queue empty. Fetching (new) keys");
 
         importMessage.value = "Fetching keys... ";
@@ -214,30 +215,51 @@ const startKeyQueueProcessing = async () => {
             importMessage.value = "No new logs to fetch. ";
             return;
         }
+
         // Initiate key queue
-        keyQueue = [...newKeys];
+        keyQueue.value = [...newKeys];
+        itemsToProcess.value = keyQueue.value.length;
+
         // Store new keys
         cfNamespaceKeys.value = cfNamespaceKeys.value.concat(newKeys);
-        itemsToProcess.value = keyQueue.length;
-        itemsProcessed.value = 0;
 
-        // Fetch the latest 100 keys first
-        console.log("[start] - Processing first 100 keys");
-        importMessage.value = "Fetching latest logs... ";
-        await processKeyQueue(100);
+        // Process a batch of max 100 keys from queue, to update table quickly.
+        // The rest will be scheduled to avoid the rateLimit.
+        const batchSize = Math.min(100, keyQueue.value.length);
+        console.log(`[start] - Processing first ${batchSize} keys`);
+        importMessage.value = `Fetching most recent ${batchSize} logs...`;
+        await processKeyQueue(batchSize);
     }
+
     console.log("[start] - Processing keys");
-    console.log(`[start] - Processing ${keyQueue.length} keys`);
-    importMessage.value = "Fetching remaining logs... ";
+    console.log(`[start] - Processing ${keyQueue.value.length} keys`);
+    importMessage.value = "Fetching logs...";
     keyQueueTimer = setInterval(processKeyQueue, rateInterval);
 };
 
 const stopKeyQueueProcessing = () => {
     console.log("[stop] - Key-queue processing stopped");
-    console.log(`[stop] - Keys left in queue: ${keyQueue.length}`);
+    console.log(`[stop] - Keys left in queue: ${keyQueue.value.length}`);
+
     clearInterval(keyQueueTimer);
     loadingFromWeb.value = false;
-    if (itemsToProcess) importMessage.value = "Fetching paused";
+
+    if (
+        itemsProcessed.value < itemsToProcess.value &&
+        itemsToProcess.value > 0
+    ) {
+        importMessage.value = "Fetching paused";
+    } else {
+        importMessage.value = "Fetching completed";
+        // Hide the message and progress bar 15 seconds
+        setTimeout(() => {
+            console.log("[stop] - Closing progress bar");
+            itemsToProcess.value = 0;
+            itemsProcessed.value = 0;
+            keyQueue.value = [];
+            kvPairs = [];
+        }, 60000);
+    }
 };
 
 // Start or stop key-queue processing
@@ -283,6 +305,7 @@ watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => handleKeyQueueProcessing());
 
 onUnmounted(() => clearInterval(keyQueueTimer));
+onUnmounted(() => stopKeyQueueProcessing());
 </script>
 
 <template>
@@ -347,11 +370,11 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                     @click.stop="handleKeyQueueProcessing()"
                 />
             </template>
-            <!--  -->
+
             <template v-slot:bottom>
                 <v-row
                     class="flex-nowrap bg-surface-variant"
-                    v-show="loadingFromWeb || itemsToProcess"
+                    v-show="loadingFromWeb || itemsToProcess > 0"
                 >
                     <v-col class="flex-grow-0 flex-shrink-0 ml-2" cols="3">
                         {{ importMessage }}
@@ -363,13 +386,18 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                     >
                         <v-progress-linear
                             v-model="importProgress"
+                            :indeterminate="itemsProcessed == 0"
+                            :striped="itemsProcessed == 0"
                             color="orange-darken-2"
                             height="20"
                             rounded="sm"
                             class="mb-1"
                         >
                             <template v-slot:default="{ value }">
-                                <div class="text-caption text-center">
+                                <div
+                                    class="text-caption text-center"
+                                    v-if="itemsProcessed != 0"
+                                >
                                     {{ itemsProcessed }} ({{ itemsToProcess }})
                                 </div>
                             </template>

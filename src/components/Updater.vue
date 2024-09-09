@@ -116,14 +116,14 @@ const states = ref({
         },
     },
     updating: {
-        title: "Downloading and installing update",
+        title: "Downloading and installing",
         icon: "",
         loading: false,
         tooltip: "Installing update",
         onClick: () => {},
     },
     finished: {
-        title: "Installed and ready to relaunch",
+        title: "Installed, ready to relaunch",
         icon: "mdi-restart",
         loading: false,
         tooltip: "Relaunch application",
