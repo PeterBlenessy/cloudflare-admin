@@ -141,6 +141,7 @@ const handleClearLocalKVStorage = () => {
                         <v-progress-circular
                             v-else-if="progress != 0"
                             color="orange-darken-2"
+                            :size="24"
                             :model-value="progress"
                         >
                         </v-progress-circular>
@@ -159,7 +160,7 @@ const handleClearLocalKVStorage = () => {
                             </template>
                         </v-tooltip>
                     </template>
-                    <v-list>
+                    <v-list density="compact">
                         <v-list-item
                             @click="handleClearLocalKVStorage()"
                             prepend-icon="mdi-database-remove"

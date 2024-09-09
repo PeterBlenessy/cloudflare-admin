@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.16 - 2024-09-09
+- Fixed issue where updater loading indicator icon was larger than the other icons.
+- Enabled DevTools in production builds. Note: The devtools API is private on macOS. Using private APIs on macOS prevents your application from being accepted to the App Store.
+- Configured toolbar menu items to be more compact.
+- Configured key-values to be sorted descending based on timestamp.
+- Fixed issue where UI caches were not cleared when clearing local DB.
+- Added progress messages.
+- Fixed error where KV fetch progress was not started/stopped properly.
+
 ## v0.1.15 - 2024-09-08
 - Added support for clearing local KV storage.
 - Added support for storing key-value pairs in IndexedDB.

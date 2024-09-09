@@ -15,12 +15,21 @@ const {
     cfKeysCursor,
 } = storeToRefs(settingsStore);
 
-const cf = cfClient(cfApiKey.value, cfAccountId.value);
-
+// Model used to pick up button click from parent
 const clearDB = defineModel({ default: false });
 
+// Reactive array connected to the KV table
 const keyValuePairs = ref([]);
+
+// Intermediate array
+let kvPairs = [];
+
 //--------------------------------------------------------------------------------
+// Local KV Storage
+
+const loadingFromDB = ref(false);
+watch(clearDB, () => clearKeyValuePairs());
+
 // Initialize localforage instance (IndexedDB)
 const kvDB = localforage.createInstance({
     name: "cf-admin",
@@ -35,8 +44,11 @@ const storeKeyValuePair = (key, value) => {
         .catch((error) => console.error("[kvStore.setItem]", error));
 };
 
-watch(clearDB, () => clearKeyValuePairs());
+// Clear all key-value pairs stored in IndexedDB
 const clearKeyValuePairs = () => {
+    stopKeyQueueProcessing();
+    keyQueue = [];
+    keyValuePairs.value = [];
     kvDB.clear()
         .then(() => {
             keyValuePairs.value = [];
@@ -45,7 +57,6 @@ const clearKeyValuePairs = () => {
         .catch((error) => console.error("[kvStore.clear]", error));
 };
 
-const loadingFromDB = ref(false);
 // Load key-value pairs from IndexedDB
 const loadKeyValuePairs = () => {
     console.time("loadKeyValuePairs()");
@@ -56,6 +67,7 @@ const loadKeyValuePairs = () => {
     })
         .then(() => {
             keyValuePairs.value = data;
+            console.log("[loadingFromDB] - done");
         })
         .catch((error) => {
             throw new Error(error);
@@ -67,6 +79,9 @@ const loadKeyValuePairs = () => {
 };
 
 //--------------------------------------------------------------------------------
+// Cloudflare API calls
+const cf = cfClient(cfApiKey.value, cfAccountId.value);
+
 // Fetch all keys from stored cursor
 const fetchAllKeys = async () => {
     let allKeys = [];
@@ -88,7 +103,7 @@ const fetchAllKeys = async () => {
             console.log(
                 `[fetchAllKeys] - Fetched ${keys.length} keys. Total: ${allKeys.length}`,
             );
-
+            itemsProcessed.value = allKeys.length;
             // Save cursor so we don't fetch all keys again next time
             if (cursor) cfKeysCursor.value = cursor;
             if (!cursor || info.count < limit) fetchMore = false;
@@ -108,33 +123,36 @@ const fetchKeyValue = async (key) => {
             ...value,
         });
         storeKeyValuePair(key.name, value);
-        keysProcessed.value++;
+        itemsProcessed.value++;
     } catch (error) {
         console.error(
-            `[fetchKeyValue] - Error fetching value for key ${key.name} at position ${keysProcessed.value}`,
+            `[fetchKeyValue] - Error fetching value for key ${key.name} at position ${itemsProcessed.value}`,
             error,
         );
         console.error(
-            `[fetchKeyValue] - Fetched ${keysProcessed.value} (${keysToProcess.value}) keys`,
+            `[fetchKeyValue] - Fetched ${itemsProcessed.value} (${itemsToProcess.value}) keys`,
         );
     }
 };
 
-let kvPairs = [];
+//--------------------------------------------------------------------------------
+// Queue Processing
+
 let keyQueue = [];
 let keyQueueTimer;
 
 // 1200 requests per 5 minutes => max 4 api calls per second => 250ms delay
 const rateInterval = 300;
 
-const keysToProcess = ref(0);
-const keysProcessed = ref(0);
+const itemsToProcess = ref(0);
+const itemsProcessed = ref(0);
 const loadingFromWeb = ref(false);
 const importProgress = computed(() =>
-    keysToProcess.value == 0
+    itemsToProcess.value == 0
         ? 0
-        : (keysProcessed.value / keysToProcess.value) * 100,
+        : (itemsProcessed.value / itemsToProcess.value) * 100,
 );
+const importMessage = ref("");
 
 // Processes 'limit' keys from the key-queue, default is one key
 const processKeyQueue = async (limit = 1) => {
@@ -159,10 +177,10 @@ const processKeyQueue = async (limit = 1) => {
                 console.error("[process] - Error in batch processing", error);
             }
         } else {
-            // console.log("[process] - Processing a single key");
+            // Process the last element in the array, which is the latest log
             const key = keyQueue.pop();
             await fetchKeyValue(key);
-            keysProcessed.value++;
+            itemsProcessed.value++;
             // cfKeyValuePairs.value = kvPairs;
         }
     } else {
@@ -174,8 +192,11 @@ const processKeyQueue = async (limit = 1) => {
 const startKeyQueueProcessing = async () => {
     console.log("[start] - Queue processing started");
     console.log(`[start] - Queue length:, ${keyQueue.length}`);
+    loadingFromWeb.value = true;
     if (keyQueue.length == 0) {
         console.log("[start] - Queue empty. Fetching (new) keys");
+
+        importMessage.value = "Fetching keys... ";
         const { keys } = await fetchAllKeys();
 
         // Filter out new keys
@@ -190,22 +211,24 @@ const startKeyQueueProcessing = async () => {
 
         if (newKeys.length == 0) {
             console.log("[start] - No new keys to process. Exiting.");
-            // loadingFromWeb.value = false;
+            importMessage.value = "No new logs to fetch. ";
             return;
         }
         // Initiate key queue
         keyQueue = [...newKeys];
         // Store new keys
         cfNamespaceKeys.value = cfNamespaceKeys.value.concat(newKeys);
-        keysToProcess.value = keyQueue.length;
-        keysProcessed.value = 0;
+        itemsToProcess.value = keyQueue.length;
+        itemsProcessed.value = 0;
 
         // Fetch the latest 100 keys first
         console.log("[start] - Processing first 100 keys");
+        importMessage.value = "Fetching latest logs... ";
         await processKeyQueue(100);
     }
     console.log("[start] - Processing keys");
     console.log(`[start] - Processing ${keyQueue.length} keys`);
+    importMessage.value = "Fetching remaining logs... ";
     keyQueueTimer = setInterval(processKeyQueue, rateInterval);
 };
 
@@ -213,16 +236,16 @@ const stopKeyQueueProcessing = () => {
     console.log("[stop] - Key-queue processing stopped");
     console.log(`[stop] - Keys left in queue: ${keyQueue.length}`);
     clearInterval(keyQueueTimer);
+    loadingFromWeb.value = false;
+    if (itemsToProcess) importMessage.value = "Fetching paused";
 };
 
 // Start or stop key-queue processing
 const handleKeyQueueProcessing = () => {
-    if (loadingFromWeb.value || keyQueueTimer) {
+    if (loadingFromWeb.value == true) {
         stopKeyQueueProcessing();
-        loadingFromWeb.value = false;
     } else {
-        loadingFromWeb.value = true;
-        startKeyQueueProcessing().then(() => (loadingFromWeb.value = false));
+        startKeyQueueProcessing();
     }
 };
 
@@ -233,6 +256,7 @@ const kvHeaders = ref([
     { title: "Text", key: "text", width: "210px" },
     { title: "Data", key: "data" },
 ]);
+const sortBy = ref([{ key: "timestamp", order: "desc" }]);
 
 const search = ref("");
 
@@ -284,7 +308,6 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                 variant="plain"
                 class="ma-1"
                 :color="loadingFromWeb ? 'orange darken-2' : ''"
-                :loading="loadingFromWeb"
                 @click="handleKeyQueueProcessing()"
             />
             <v-text-field
@@ -304,6 +327,7 @@ onUnmounted(() => clearInterval(keyQueueTimer));
         <v-data-table-virtual
             width="100%"
             :headers="kvHeaders"
+            :sort-by="sortBy"
             :items="keyValuePairs"
             item-value="key"
             :loading="loadingFromDB"
@@ -323,23 +347,35 @@ onUnmounted(() => clearInterval(keyQueueTimer));
                     @click.stop="handleKeyQueueProcessing()"
                 />
             </template>
-
+            <!--  -->
             <template v-slot:bottom>
-                <div class="text-center pa-2">
-                    <v-progress-linear
-                        v-if="importProgress > 0 && importProgress < 100"
-                        v-model="importProgress"
-                        color="orange-darken-2"
-                        height="20"
-                        rounded="0"
+                <v-row
+                    class="flex-nowrap bg-surface-variant"
+                    v-show="loadingFromWeb || itemsToProcess"
+                >
+                    <v-col class="flex-grow-0 flex-shrink-0 ml-2" cols="3">
+                        {{ importMessage }}
+                    </v-col>
+                    <v-col
+                        class="flex-grow-1 flex-shrink-0 mb-2 mr-2"
+                        cols="1"
+                        style="min-width: 100px; max-width: 100%"
                     >
-                        <template v-slot:default="{ value }">
-                            <div class="text-caption text-center">
-                                {{ keysProcessed }} ({{ keysToProcess }})
-                            </div>
-                        </template>
-                    </v-progress-linear>
-                </div>
+                        <v-progress-linear
+                            v-model="importProgress"
+                            color="orange-darken-2"
+                            height="20"
+                            rounded="sm"
+                            class="mb-1"
+                        >
+                            <template v-slot:default="{ value }">
+                                <div class="text-caption text-center">
+                                    {{ itemsProcessed }} ({{ itemsToProcess }})
+                                </div>
+                            </template>
+                        </v-progress-linear>
+                    </v-col>
+                </v-row>
             </template>
         </v-data-table-virtual>
     </v-card>
