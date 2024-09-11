@@ -25,9 +25,6 @@ const clearDB = defineModel({ default: false });
 // Reactive array connected to the KV table
 const keyValuePairs = ref([]);
 
-// Intermediate array
-let kvPairs = [];
-
 //--------------------------------------------------------------------------------
 // Local KV Storage
 
@@ -55,7 +52,6 @@ const clearKeyValuePairs = () => {
     keyValuePairs.value = [];
     itemsProcessed.value = 0;
     itemsToProcess.value = 0;
-    kvPairs = [];
 
     kvDB.clear()
         .then(() => {
@@ -124,10 +120,6 @@ const fetchAllKeys = async () => {
 const fetchKeyValue = async (key) => {
     try {
         const value = await cf.readKeyValuePair(cfNamespaceId.value, key.name);
-        kvPairs = kvPairs.concat({
-            key: key.name,
-            ...value,
-        });
         storeKeyValuePair(key.name, value);
         itemsProcessed.value++;
     } catch (error) {
@@ -171,9 +163,6 @@ const processKeyQueue = async (batchSize = 1) => {
                 // Wait for all promises in the current batch to resolve
                 await Promise.all(promises);
                 console.log(`[process] - Batch of ${batchSize} completed`);
-
-                // Store first batch so key-value pair table gets updated
-                if (batchSize > 1) keyValuePairs.value = kvPairs;
             } catch (error) {
                 console.error("[process] - Error in batch processing", error);
             }
@@ -257,7 +246,6 @@ const stopKeyQueueProcessing = () => {
             itemsToProcess.value = 0;
             itemsProcessed.value = 0;
             keyQueue.value = [];
-            kvPairs = [];
         }, 60000);
     }
 };
@@ -281,7 +269,11 @@ const kvHeaders = ref([
 const sortBy = ref([{ key: "timestamp", order: "desc" }]);
 
 const search = ref("");
-
+const page = ref(1);
+const itemsPerPage = ref(25);
+const pageCount = computed(() => {
+    return Math.ceil(keyValuePairs.value.length / itemsPerPage.value);
+});
 const loadingNamespaces = ref(false);
 const namespaceOptions = ref([]);
 
@@ -300,6 +292,14 @@ const loadNamespaceOptions = async () => {
 
 onMounted(async () => await loadNamespaceOptions());
 onMounted(async () => loadKeyValuePairs());
+onMounted(() => {
+    if (
+        itemsToProcess.value > 0 &&
+        itemsToProcess.value > itemsProcessed.value
+    ) {
+        importMessage.value = "Fetching paused";
+    }
+});
 
 watch(isValidApiKey, async () => await loadNamespaceOptions());
 watch(cfNamespaceId, async () => handleKeyQueueProcessing());
@@ -347,19 +347,20 @@ onUnmounted(() => stopKeyQueueProcessing());
 
         <v-divider />
 
-        <v-data-table-virtual
+        <v-data-table
             width="100%"
             :headers="kvHeaders"
             :sort-by="sortBy"
             :items="keyValuePairs"
-            item-value="key"
             :loading="loadingFromDB"
+            :search="search"
+            item-value="key"
             density="compact"
             fixed-header
             fixed-footer
             height="calc(100vh - 195px)"
-            :search="search"
-            items-per-page="-1"
+            :items-per-page="itemsPerPage"
+            v-model:page="page"
         >
             <template v-slot:no-data>
                 <v-btn
@@ -373,16 +374,19 @@ onUnmounted(() => stopKeyQueueProcessing());
 
             <template v-slot:bottom>
                 <v-row
-                    class="flex-nowrap bg-surface-variant"
+                    class="d-flex flex-row bg-surface-variant wrap"
+                    dense
+                    no-gutters
                     v-show="loadingFromWeb || itemsToProcess > 0"
                 >
-                    <v-col class="flex-grow-0 flex-shrink-0 ml-2" cols="3">
+                    <v-col class="justify-start ma-2 text-truncate" cols="2">
                         {{ importMessage }}
                     </v-col>
+
                     <v-col
-                        class="flex-grow-1 flex-shrink-0 mb-2 mr-2"
-                        cols="1"
-                        style="min-width: 100px; max-width: 100%"
+                        class="me-auto ma-2"
+                        cols="3"
+                        style="min-width: 100px; max-width: 300px"
                     >
                         <v-progress-linear
                             v-model="importProgress"
@@ -403,8 +407,49 @@ onUnmounted(() => stopKeyQueueProcessing());
                             </template>
                         </v-progress-linear>
                     </v-col>
+
+                    <v-col class="ma-1" cols="1">
+                        <v-menu>
+                            <template v-slot:activator="{ props }">
+                                <v-btn
+                                    class="ma-0"
+                                    color="grey-lighten-3"
+                                    v-bind="props"
+                                    append-icon="mdi-chevron-down"
+                                    size="small"
+                                    slim
+                                    variant="flat"
+                                >
+                                    {{ itemsPerPage }}
+                                </v-btn>
+                            </template>
+                            <v-list density="compact">
+                                <v-list-item
+                                    v-for="item in ['25', '50', '100', '200']"
+                                    :selected="item"
+                                    :key="item"
+                                    :title="item"
+                                    @click="itemsPerPage = parseInt(item)"
+                                    class="ma-0"
+                                    nav
+                                    slim
+                                />
+                            </v-list>
+                        </v-menu>
+                    </v-col>
+
+                    <v-col class="ma-1" cols="3">
+                        <v-pagination
+                            v-model="page"
+                            :length="pageCount"
+                            active-color="orange-darken-2"
+                            density="compact"
+                            size="small"
+                            variant="text"
+                        />
+                    </v-col>
                 </v-row>
             </template>
-        </v-data-table-virtual>
+        </v-data-table>
     </v-card>
 </template>

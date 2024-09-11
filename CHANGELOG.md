@@ -28,7 +28,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.18 - 2024-09-11
+- Fixed issue where progress message is “Fetching logs...” after a restart when it should be "Fetching paused"
+- Fixed issue where key-value pairs were stored in two arrays, leading to unnecessary memory usage.
+- Added pagination to key-value pairs table to lower memory usage for large number of rows.
+- Fixed some design issues with the key-value pairs table footer.
+
 ## v0.1.17 - 2024-09-09
+- Added progress indication when fetching all keys.
 - Changed Updater progress texts to fit in dialog.
 - Fixed error in calculating items to process and queue length.
 - Fixed error where fetch progress status said paused, when status was in fact done.
