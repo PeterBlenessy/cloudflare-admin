@@ -377,9 +377,12 @@ onUnmounted(() => stopKeyQueueProcessing());
                     class="d-flex flex-row bg-surface-variant wrap"
                     dense
                     no-gutters
-                    v-show="loadingFromWeb || itemsToProcess > 0"
                 >
-                    <v-col class="justify-start ma-2 text-truncate" cols="2">
+                    <v-col
+                        class="justify-start ma-2 text-truncate"
+                        cols="2"
+                        v-show="loadingFromWeb || itemsToProcess > 0"
+                    >
                         {{ importMessage }}
                     </v-col>
 
@@ -387,6 +390,7 @@ onUnmounted(() => stopKeyQueueProcessing());
                         class="me-auto ma-2"
                         cols="3"
                         style="min-width: 100px; max-width: 300px"
+                        v-show="loadingFromWeb || itemsToProcess > 0"
                     >
                         <v-progress-linear
                             v-model="importProgress"

@@ -16,9 +16,9 @@
                             <v-btn
                                 v-if="status != 'updating'"
                                 v-bind="props"
-                                color="orange-darken-2"
                                 density="comfortable"
                                 variant="text"
+                                :color="states[status].color"
                                 :icon="states[status].icon"
                                 :loading="states[status].loading"
                                 @click="states[status].onClick()"
@@ -26,7 +26,7 @@
 
                             <v-progress-circular
                                 v-if="status == 'updating'"
-                                color="orange-darken-2"
+                                :color="states[status].color"
                                 :model-value="progress"
                             >
                             </v-progress-circular>
@@ -82,6 +82,7 @@ const states = ref({
         title: "Checking for updates",
         icon: "mdi-download",
         loading: true,
+        color: "",
         tooltip: "Cancel",
         onClick: () => {
             updaterStatus.value = false;
@@ -91,6 +92,7 @@ const states = ref({
         title: "Update available",
         icon: "mdi-download",
         loading: false,
+        color: "orange-darken-2",
         tooltip: "Download and install",
         onClick: () => {
             status.value = "updating";
@@ -101,6 +103,7 @@ const states = ref({
         title: "No updates available",
         icon: "mdi-close",
         loading: false,
+        color: "",
         tooltip: "Close",
         onClick: () => {
             updaterStatus.value = false;
@@ -110,6 +113,7 @@ const states = ref({
         title: "Update failed",
         icon: "mdi-alert",
         loading: false,
+        color: "",
         tooltip: "Close",
         onClick: () => {
             updaterStatus.value = false;
@@ -119,6 +123,7 @@ const states = ref({
         title: "Downloading and installing",
         icon: "",
         loading: false,
+        color: "orange-darken-2",
         tooltip: "Installing update",
         onClick: () => {},
     },
@@ -126,6 +131,7 @@ const states = ref({
         title: "Installed, ready to relaunch",
         icon: "mdi-restart",
         loading: false,
+        color: "orange-darken-2",
         tooltip: "Relaunch application",
         onClick: () => {
             relaunchApp();

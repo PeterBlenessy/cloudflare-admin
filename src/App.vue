@@ -125,26 +125,14 @@ const handleClearLocalKVStorage = () => {
                 <v-tooltip location="bottom center" :text="updaterTooltip">
                     <template v-slot:activator="{ props }">
                         <v-btn
-                            v-if="progress == 0"
+                            :loading="progress > 0 && progress < 100"
                             v-bind="props"
-                            icon="mdi-download"
+                            :icon="
+                                progress == 0 ? 'mdi-download' : 'mdi-restart'
+                            "
                             :color="isUpdateAvailable ? 'orange darken-2' : ''"
                             @click.stop="handleClickUpdateButton()"
                         />
-                        <v-btn
-                            v-else-if="progress == 100"
-                            v-bind="props"
-                            icon="mdi-restart"
-                            color="orange darken-2"
-                            @click.stop="handleClickUpdateButton()"
-                        />
-                        <v-progress-circular
-                            v-else-if="progress != 0"
-                            color="orange-darken-2"
-                            :size="24"
-                            :model-value="progress"
-                        >
-                        </v-progress-circular>
                     </template>
                 </v-tooltip>
 

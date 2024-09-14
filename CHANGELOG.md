@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.19 - 2024-09-14
+- Simplified update progress in app toolbar to avoid jumpy UI.
+- Added color as configurable parameter in Updater states.
+
 ## v0.1.18 - 2024-09-11
 - Fixed issue where progress message is “Fetching logs...” after a restart when it should be "Fetching paused"
 - Fixed issue where key-value pairs were stored in two arrays, leading to unnecessary memory usage.
