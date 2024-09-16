@@ -87,7 +87,7 @@ const loadKeyValuePairs = () => {
 const cf = cfClient(cfApiKey.value, cfAccountId.value);
 
 // Fetch all keys from stored cursor
-const fetchAllKeys = async () => {
+const fetchKeys = async () => {
     let allKeys = [];
     let limit = 1000;
     let cursor = cfKeysCursor.value || null;
@@ -105,14 +105,14 @@ const fetchAllKeys = async () => {
             cursor = info.cursor;
 
             console.log(
-                `[fetchAllKeys] - Fetched ${keys.length} keys. Total: ${allKeys.length}`,
+                `[fetchKeys] - Fetched ${keys.length} keys. Total: ${allKeys.length}`,
             );
             // Save cursor so we don't fetch all keys again next time
             if (cursor) cfKeysCursor.value = cursor;
             if (!cursor || info.count < limit) fetchMore = false;
         }
     } catch (error) {
-        console.error("[fetchAllKeys] - Error fetching keys:", error);
+        console.error("[fetchKeys] - Error fetching keys:", error);
     }
     return { keys: allKeys, cursor: cursor };
 };
@@ -182,43 +182,40 @@ const startKeyQueueProcessing = async () => {
     console.log(`[start] - Queue length:, ${keyQueue.value.length}`);
     loadingFromWeb.value = true;
 
-    // If queue is empty, fetch new keys
-    if (keyQueue.value.length == 0) {
-        console.log("[start] - Queue empty. Fetching (new) keys");
+    importMessage.value = "Checking for new keys...";
+    const { keys } = await fetchKeys();
 
-        importMessage.value = "Fetching keys... ";
-        const { keys } = await fetchAllKeys();
+    // Filter out new keys
+    const newKeys = keys.filter(
+        (key) => !cfNamespaceKeys.value.some((item) => item.name === key.name),
+    );
 
-        // Filter out new keys
-        const newKeys = keys.filter(
-            (key) =>
-                !cfNamespaceKeys.value.some((item) => item.name === key.name),
-        );
+    console.log(
+        `[start] - Fetched ${keys.length} keys. New keys: ${newKeys.length}`,
+    );
 
-        console.log(
-            `[start] - Fetched ${keys.length} keys. New keys: ${newKeys.length}`,
-        );
-
-        if (newKeys.length == 0) {
-            console.log("[start] - No new keys to process. Exiting.");
-            importMessage.value = "No new logs to fetch. ";
-            return;
-        }
-
-        // Initiate key queue
-        keyQueue.value = [...newKeys];
-        itemsToProcess.value = keyQueue.value.length;
-
+    if (newKeys.length > 0) {
         // Store new keys
         cfNamespaceKeys.value = cfNamespaceKeys.value.concat(newKeys);
 
-        // Process a batch of max 100 keys from queue, to update table quickly.
-        // The rest will be scheduled to avoid the rateLimit.
-        const batchSize = Math.min(100, keyQueue.value.length);
-        console.log(`[start] - Processing first ${batchSize} keys`);
-        importMessage.value = `Fetching most recent ${batchSize} logs...`;
-        await processKeyQueue(batchSize);
+        // Add keys to queue
+        keyQueue.value = keyQueue.value.concat(newKeys); //[...newKeys];
+        itemsToProcess.value = keyQueue.value.length;
     }
+
+    // TODO
+    // When pausing
+    // - store time
+    // When resuming
+    // - fetch 100 recent only if relevant
+    // - adopt rateInterval to time passed and apiCalls made
+
+    // Process a batch of max 100 keys from queue, to update table quickly.
+    // The rest will be scheduled to avoid the rateLimit.
+    const batchSize = Math.min(100, keyQueue.value.length);
+    console.log(`[start] - Processing first ${batchSize} keys`);
+    importMessage.value = `Fetching most recent ${batchSize} logs...`;
+    await processKeyQueue(batchSize);
 
     console.log("[start] - Processing keys");
     console.log(`[start] - Processing ${keyQueue.value.length} keys`);
@@ -380,7 +377,7 @@ onUnmounted(() => stopKeyQueueProcessing());
                 >
                     <v-col
                         class="justify-start ma-2 text-truncate"
-                        cols="2"
+                        cols="3"
                         v-show="loadingFromWeb || itemsToProcess > 0"
                     >
                         {{ importMessage }}

@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [UNRELEASED]
 
+## v0.1.20 - 2024-09-16
+- Changed to check for new keys when resuming log fetching.
+
 ## v0.1.19 - 2024-09-14
 - Simplified update progress in app toolbar to avoid jumpy UI.
 - Added color as configurable parameter in Updater states.
